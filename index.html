@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Govee Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d0e14; --panel:#1c1e27; --panel2:#23252f; --sunk:#2a2d38;
+    --border:rgba(255,255,255,.13); --border2:rgba(255,255,255,.22);
+    --ink:#ecedf2; --muted:#8b8f9e; --muted2:#5b5f6e;
+    --accent:#00ace7; --accent-soft:rgba(0,172,231,.15); --accent-ink:#55cdf4;
+    --ok:#4ade80; --err:#f87171;
+    --r:5px; --r-sm:4px;
+    --disp:'Inter',system-ui,sans-serif;
+    --body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--body);background:var(--bg);color:var(--ink);color-scheme:dark;
+    display:grid;grid-template-columns:300px 1fr;height:100vh;overflow:hidden;
+    font-size:14px;
+  }
+  h1,h2,h3,.disp{font-family:var(--disp)}
+  .hidden{display:none!important}
+
+  /* ---- device sidebar ---- */
+  .device{
+    padding:16px;display:flex;flex-direction:column;gap:10px;
+    border-right:1px solid var(--border);overflow-y:auto;background:var(--panel);
+  }
+  .brand{display:flex;align-items:center;gap:9px;padding-bottom:11px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .brand .btn{margin-left:0}
+  .brand .mark{display:flex;align-items:center;position:relative}
+  .brand .mark img{height:30px;width:auto}
+  .brand .nm{font-family:var(--disp);font-weight:700;font-size:.95rem;letter-spacing:-.01em;line-height:1.15}
+  .brand .nm small{display:block;font-size:.75rem;font-weight:500;color:var(--muted)}
+
+  #settingsBtn{margin-left:auto}
+  #toggleBtnBrand{display:none}
+
+  #bulbCardWrap{overflow:visible;transition:max-height .22s ease,opacity .18s ease;opacity:1;flex-shrink:0}
+  #bulbCardWrap.collapsed{max-height:0!important;opacity:0;overflow:hidden;pointer-events:none}
+
+  .conn-dot{position:absolute;bottom:-1px;right:-3px;width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px var(--ok);border:1.5px solid var(--panel);opacity:0;transition:opacity .4s}
+  .conn-dot.visible{opacity:1}
+
+  .conn-error{width:100%;font-size:.72rem;color:var(--err);background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.22);border-radius:var(--r-sm);padding:5px 9px;display:flex;align-items:center;gap:6px;overflow:hidden;max-height:0;opacity:0;transition:max-height .25s ease,opacity .2s ease,margin .25s ease;margin-top:0}
+  .conn-error.visible{max-height:40px;opacity:1;margin-top:2px}
+  .conn-error-msg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .conn-error-close{cursor:pointer;color:var(--muted2);flex-shrink:0;font-size:.9rem;line-height:1;padding:0 2px}
+  .conn-error-close:hover{color:var(--err)}
+
+  .btn-spinner{display:none;width:13px;height:13px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .btn.spinning .btn-label{display:none}
+  .btn.spinning .btn-spinner{display:inline-block}
+  #connectBtn .reload-icon{display:none}
+  #connectBtn.reload-mode{width:28px;height:28px;padding:0;background:none;border:1px solid var(--border);border-radius:var(--r);color:var(--muted)}
+  #connectBtn.reload-mode:hover{border-color:var(--accent);color:var(--accent-ink);filter:none}
+  #connectBtn.reload-mode .btn-label,#connectBtn.reload-mode .btn-spinner{display:none}
+  #connectBtn.reload-mode .reload-icon{display:block;width:16px;height:16px}
+
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .bulb-card{
+    border-radius:var(--r);margin:4px 0 8px;position:relative;isolation:isolate;
+    background-image:var(--sg-dim,linear-gradient(var(--border),var(--border)));background-color:transparent;
+    padding:2px;
+  }
+  .bulb-card::after{
+    content:'';position:absolute;inset:-8px;border-radius:calc(var(--r) + 6px);
+    background-image:var(--sg,var(--border));background-color:transparent;
+    filter:blur(12px);opacity:0;z-index:-1;pointer-events:none;
+    transition:opacity .3s;
+  }
+  .bulb-card.lit{background-image:var(--sg,var(--border))}
+  .bulb-card.lit::after{opacity:var(--glow-alpha,0.5)}
+  .bulb-card__inner{transition:background .3s}
+  .bulb-card.lit .bulb-card__inner{background:rgba(13,14,20,var(--inner-alpha,0.76))}
+  .bulb-card__inner{
+    background:rgba(13,14,20,0.92);border-radius:calc(var(--r) - 2px);
+    padding:12px 12px 12px 8px;display:flex;align-items:center;gap:12px;
+  }
+  .bulb-info{flex:1;min-width:0}
+  .bulb-top{display:flex;align-items:baseline;gap:5px;font-size:.82rem;font-weight:600;font-family:var(--disp)}
+  .bulb-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block}
+  .bulb-dot.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .bulb-dot.off{background:var(--muted2)}
+  .bulb-sep{color:var(--muted2);font-size:.75rem}
+  .bulb-mode{display:block;margin-top:2px;color:var(--ink);font-size:.68rem;font-weight:500;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bulb-detail{font-size:.75rem;color:var(--muted2);margin-top:3px;font-family:var(--mono)}
+  .bulb-icon{width:48px;height:48px;flex-shrink:0;object-fit:contain}
+
+  .pwr{position:relative;width:40px;height:22px;border-radius:22px;border:none;cursor:pointer;background:var(--sunk);transition:.2s;flex-shrink:0}
+  .pwr::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:.2s}
+  .pwr.on{background:var(--accent)}
+  .pwr.on::after{left:21px;background:#fff}
+  .pwr:disabled{opacity:.4;cursor:not-allowed}
+
+  .dc{display:flex;flex-direction:column;gap:6px}
+  .dc-label,.slider-label{display:flex;justify-content:space-between;align-items:center;font-size:.75rem;font-weight:600;color:var(--muted);gap:10px}
+  .dc-label .v,.slider-label .v{color:var(--ink);font-family:var(--mono);font-size:.75rem;white-space:nowrap}
+  .warmth-slider-wrap{position:relative}
+  .warmth-preset-markers{position:absolute;inset:0;pointer-events:none}
+  .warmth-preset-marker{position:absolute;top:12px;width:8px;height:8px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.58),0 0 3px rgba(0,0,0,.34);transform:translate(-50%,-50%);pointer-events:auto;transition:transform .15s;cursor:grab;touch-action:none}
+  .warmth-preset-marker:active{cursor:grabbing}
+  .warmth-preset-marker:hover{transform:translate(-50%,-50%) scale(1.25)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;background:var(--sunk);cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.5)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:var(--accent)}
+  track-slider{display:block;margin-inline:calc(-1 * var(--slider-rail-inset,4px))}
+  .dc-divide{height:1px;background:var(--border);margin:2px 0}
+
+  .mode-seg{display:flex;background:var(--sunk);border-bottom:1px solid rgba(255,255,255,.06);border-radius:calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;overflow:hidden;padding:3px;gap:3px;margin:-16px -16px 16px}
+  .mode-seg button{flex:1;border:none;background:none;padding:6px;border-radius:var(--r-sm);font-family:var(--disp);font-weight:600;font-size:.75rem;color:var(--muted);cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:5px}
+  .mode-seg button .ic{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+  .mode-seg button.active{background:var(--accent);color:#fff}
+  .modepane{display:none}
+  .modepane.active{display:flex;flex-direction:column;gap:6px;animation:modefade .18s}
+  @keyframes modefade{from{opacity:0}to{opacity:1}}
+
+  .wheel-wrap{position:relative;width:100%;max-width:220px;aspect-ratio:1;margin:0 auto;border-radius:50%;background:var(--sunk);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 10px 24px rgba(0,0,0,.22)}
+  .wheel-wrap canvas{width:100%;height:100%;border-radius:50%;display:block;cursor:crosshair;touch-action:none;box-shadow:0 0 0 1px rgba(255,255,255,.16),inset 0 0 0 1px rgba(0,0,0,.38),0 2px 10px rgba(0,0,0,.22)}
+  .wheel-handle{position:absolute;top:50%;left:50%;width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.62),inset 0 0 0 1px rgba(255,255,255,.22);transform:translate(-50%,-50%);pointer-events:none}
+  .wheel-preset-markers{position:absolute;inset:0;pointer-events:none}
+  .wheel-preset-marker{position:absolute;width:8px;height:8px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.58),0 0 3px rgba(0,0,0,.34);transform:translate(-50%,-50%);pointer-events:auto;transition:transform .15s;cursor:grab;touch-action:none}
+  .wheel-preset-marker:active{cursor:grabbing}
+  .wheel-preset-marker:hover{transform:translate(-50%,-50%) scale(1.25)}
+  .color-readout{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .color-swatch{width:28px;height:28px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);flex-shrink:0}
+  .color-info .hx{font-family:var(--mono);font-weight:600;font-size:.8rem}
+  .color-info .rg{font-family:var(--mono);font-size:.75rem;color:var(--muted)}
+
+  .status-mini{display:flex;flex-direction:column;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+  .status-row{display:flex;justify-content:space-between;align-items:baseline;padding:7px 11px;border-bottom:1px solid var(--border);font-size:.75rem;gap:8px}
+  .status-row:last-child{border-bottom:none}
+  .status-row .k{color:var(--muted);font-weight:600;font-size:.75rem;flex-shrink:0}
+  .status-row .rv{text-align:right;min-width:0}
+  .card-value{font-weight:700;font-size:.78rem;font-family:var(--mono)}
+  .card-value.on{color:var(--ok)}
+  .card-value.off{color:var(--err)}
+  .card-sub{font-size:.75rem;color:var(--muted);margin-top:1px;word-break:break-word}
+
+  .icon-btn,.matrix-icon-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;background:none;border:1px solid var(--border);border-radius:var(--r);color:var(--muted);cursor:pointer;transition:.15s;flex-shrink:0}
+  .icon-btn:hover,.matrix-icon-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+  .icon-btn.active,.matrix-icon-btn.active{border-color:var(--accent);color:var(--accent-ink);background:var(--panel2)}
+  .settings-modal-row{width:100%;display:flex;align-items:center;gap:12px;padding:11px 14px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--ink);font-family:var(--disp);font-size:.85rem;font-weight:500;cursor:pointer;transition:.15s;text-align:left}
+  .settings-modal-row:last-child{border-bottom:none}
+  .settings-modal-row:hover{background:var(--panel2);color:var(--accent-ink)}
+  .settings-modal-row .row-icon{font-size:1rem;width:24px;text-align:center;flex-shrink:0}
+  .settings-modal-row .row-icon svg{width:18px;height:18px;display:block;margin:0 auto;stroke:currentColor}
+  .settings-modal-row .row-text{flex:1}
+  .settings-modal-row .row-label{font-size:.75rem;color:var(--muted);font-weight:400;display:block;margin-top:1px}
+  .settings-modal-row .row-chev{color:var(--muted2);font-size:.85rem}
+  .settings-popover{position:fixed;z-index:100;width:286px;max-width:calc(100vw - 16px);background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);box-shadow:0 14px 36px rgba(0,0,0,.42);overflow:hidden}
+
+  /* ---- workspace ---- */
+  .work{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .tabs{display:flex;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;padding:0 5px}
+  .tabs button{
+    border:none;background:none;padding:12px 15px;font-family:var(--disp);font-weight:600;font-size:.82rem;
+    color:var(--muted);cursor:pointer;transition:.15s;position:relative;white-space:nowrap;
+  }
+  .tabs button:hover{color:var(--ink)}
+  .tabs button.active{color:var(--accent-ink)}
+  .tabs button.active::after{content:"";position:absolute;left:15px;right:15px;bottom:-1px;height:2px;background:var(--accent);border-radius:2px}
+
+  .work-body{flex:1;overflow-y:auto;padding:16px 20px}
+  .pane{display:none;max-width:1040px;margin:0 auto;animation:fade .2s}
+  .pane.active{display:block}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  .pane-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap;min-height:32px}
+  .pane-head h2{font-size:1.05rem;font-weight:700;letter-spacing:-.01em}
+  .pane-head .sub{font-size:.75rem;color:var(--muted);margin-left:10px;font-family:var(--mono)}
+
+  .btn{padding:7px 13px;border:none;border-radius:var(--r);font-family:var(--disp);font-size:.78rem;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap}
+  .btn:hover:not(:disabled){filter:brightness(1.08)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-ghost{background:var(--panel);color:var(--ink);border:1px solid var(--border2)}
+  .btn-danger{background:#3a1a1a;color:var(--err);border:1px solid rgba(248,113,113,.25)}
+  .btn-sm{padding:5px 11px;font-size:.75rem}
+
+  .section-label{font-family:var(--disp);font-weight:700;font-size:.75rem;color:var(--muted);margin:22px 0 10px}
+  .preset-card-header{display:flex;align-items:center;gap:8px;min-height:37px;margin:-16px -16px 14px;padding:8px 14px;background:var(--sunk);border-bottom:1px solid rgba(255,255,255,.06);border-radius:calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;font-family:var(--disp);font-weight:700;font-size:.75rem;color:var(--muted)}
+  .preset-card-header:has(#colourPresetEditToggle){padding-top:5px;padding-bottom:5px}
+  .colour-preset-drag-hint{display:none;font-size:.75rem;font-weight:400;color:var(--muted2)}
+  .preset-card-header:has(#colourPresetEditToggle.active) .colour-preset-drag-hint{display:inline}
+  .preset-edit-toggle{margin-left:auto;width:26px;height:26px;padding:4px;border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
+  .preset-edit-toggle svg{width:16px;height:16px;flex-shrink:0;stroke:currentColor}
+  .preset-edit-toggle:hover,.preset-edit-toggle.active{background:var(--panel);border-color:var(--border);color:var(--accent-ink)}
+
+  /* scene controls */
+  .scene-browser{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:28px;overflow:hidden}
+  .scene-controls{display:flex;align-items:center;gap:8px;margin:-16px -16px 14px;padding:3px;flex-wrap:nowrap;background:var(--sunk);border-bottom:1px solid rgba(255,255,255,.06);border-radius:calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0}
+  .chips{display:flex;gap:5px;flex-wrap:wrap}
+  #sceneTabs{display:flex;gap:2px;padding:0;background:transparent;border:none;border-radius:0;flex:1;width:100%}
+  #sceneTabs .scene-tab{flex:1;text-align:center}
+
+  /* scene-tab is what govee-scenes.js renders inside #sceneTabs */
+  .chip,.scene-tab{
+    padding:5px 11px;border-radius:var(--r);border:1px solid var(--border);
+    background:var(--panel);color:var(--muted);font-weight:600;font-size:.75rem;
+    cursor:pointer;transition:.15s;font-family:var(--disp);
+  }
+  #sceneTabs .scene-tab{border:none;background:none;border-radius:var(--r-sm);padding:6px 10px}
+  .chip:hover,.scene-tab:hover{color:var(--ink)}
+  .chip.active,.scene-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  #sceneTabs .scene-tab.active{background:var(--accent);color:#fff}
+
+  .search{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:5px 10px;min-width:220px}
+  .search svg{width:13px;height:13px;stroke:var(--muted);fill:none;stroke-width:1.9;flex-shrink:0}
+  .search input{flex:1;background:none;border:none;outline:none;font-size:.78rem;color:var(--ink);font-family:var(--body)}
+  .search input::placeholder{color:var(--muted);opacity:.6}
+
+  /* scene-grid / scene-badge: govee-scenes.js renders .scene-badge inside #sceneGrid */
+  .scene-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:16px;margin-bottom:4px;min-height:40px;align-items:start}
+  .scene-browser .scene-grid{margin-bottom:0;padding-top:4px}
+  #scenePresetRow{padding-top:4px}
+  .scene-badge{
+    display:flex;flex-direction:column;position:relative;min-width:0;padding:2px;
+    background-image:var(--sg-dim,var(--border));background-color:transparent;
+    border:none;border-radius:var(--r);
+    appearance:none;font-family:var(--disp);font-size:.78rem;font-weight:600;letter-spacing:0;line-height:1.2;
+    cursor:pointer;isolation:isolate;text-align:left;
+  }
+  .scene-badge::after{
+    content:'';position:absolute;inset:-8px;border-radius:calc(var(--r) + 6px);
+    background-image:var(--sg,var(--border));background-color:transparent;
+    filter:blur(12px);opacity:0;z-index:-1;pointer-events:none;
+    transition:opacity .3s;
+  }
+  .scene-badge:hover{background-image:var(--sg,var(--border))}
+  .scene-badge.active{background-image:var(--sg,var(--border))}
+  .scene-badge.active::after{opacity:.5;animation:scene-glow-pulse 2s ease-in-out infinite}
+  @keyframes scene-glow-pulse{0%,100%{opacity:.35}50%{opacity:.65}}
+  .scene-badge__inner{
+    background:rgba(13,14,20,0.92);border-radius:calc(var(--r) - 2px);
+    display:flex;flex-direction:column;position:relative;min-width:0;overflow:hidden;flex:1;
+    transition:background .3s;
+  }
+  .scene-badge:hover .scene-badge__inner{background:rgba(13,14,20,0.82)}
+  .scene-badge.active .scene-badge__inner{background:rgba(13,14,20,0.76)}
+  .scene-name{display:block;padding:10px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+
+  .preset-scene-badge{cursor:grab}
+  .preset-scene-badge:active{cursor:grabbing}
+  .preset-scene-badge.dragging{opacity:.35;cursor:grabbing}
+  .preset-scene-badge.drag-over .scene-badge__inner{outline:2px solid var(--accent);outline-offset:-2px}
+  .scene-preset-del-btn{
+    position:absolute;top:50%;right:4px;width:20px;height:20px;padding:0;transform:translateY(-50%);
+    background:none;border:none;color:var(--muted2);font-size:.75rem;
+    cursor:pointer;opacity:1;transition:color .15s;z-index:1;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .scene-preset-del-btn:hover{color:var(--err)!important;opacity:1}
+
+  .scene-fav-btn{
+    position:absolute;top:50%;right:4px;width:20px;height:20px;padding:0;transform:translateY(-50%);
+    background:none;border:none;color:var(--muted2);
+    cursor:pointer;opacity:0;transition:opacity .15s,color .15s;z-index:1;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .scene-badge:hover .scene-fav-btn{opacity:1}
+  .scene-fav-btn.active{opacity:1;color:#f06c8a}
+  .scene-fav-btn:hover{color:#f06c8a!important;opacity:1}
+
+  /* scene-code badge used in status readouts */
+  .scene-code{display:inline-block;background:var(--accent-soft);color:var(--accent);border:1px solid rgba(0,172,231,.25);border-radius:4px;padding:1px 7px;font-size:.82rem;font-family:var(--mono);margin-right:5px}
+
+  /* preset rows */
+  .preset-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:4px;min-height:24px;color:var(--muted);font-size:.85rem;align-items:flex-start}
+  #colourPresetRow{gap:14px 16px;align-items:flex-start;padding-top:4px}
+  .swatch-item{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:54px;user-select:none}
+  .swatch-item.draggable{cursor:grab}
+  .swatch-item.dragging{opacity:.35;cursor:grabbing}
+  .swatch-item.drag-over .swatch-dot{outline:2px solid var(--accent);outline-offset:4px}
+  .swatch-dot-wrap{position:relative}
+  .swatch-dot{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.18);flex-shrink:0;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 0 10px color-mix(in srgb,var(--swatch-color,#fff) 30%,transparent);transition:transform .15s,border-color .15s,box-shadow .15s}
+  .swatch-item:hover .swatch-dot,.swatch-item.preset-highlight .swatch-dot{transform:scale(1.1);border-color:rgba(255,255,255,.42);box-shadow:0 0 0 2px rgba(255,255,255,.08),0 0 16px color-mix(in srgb,var(--swatch-color,#fff) 55%,transparent)}
+  .swatch-label{font-size:.75rem;font-family:var(--mono);color:var(--muted);text-align:center;white-space:nowrap}
+  .colour-swatch-del{position:absolute;top:-6px;right:-6px;width:15px;height:15px;border-radius:50%;background:rgba(28,28,30,.95);color:var(--muted);border:1px solid rgba(255,255,255,.18);font-size:.55rem;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:2}
+  .colour-swatch-del:hover{background:var(--err);border-color:transparent;color:#fff}
+  #colourPresetRow.editing .colour-swatch-del{display:flex}
+  .swatch-add{width:30px;height:30px;border-radius:50%;background:transparent;border:1.5px dashed rgba(255,255,255,.18);color:var(--muted);font-size:1.1rem;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:none;transition:background .15s,border-color .15s,color .15s,transform .15s}
+  .swatch-add:hover{background:rgba(255,255,255,.07);border-color:var(--accent);color:var(--accent);transform:scale(1.1)}
+  .preset-controls{display:flex;gap:4px;margin-top:6px}
+  .preset-btn{padding:2px 6px;font-size:.75rem;background:var(--panel2);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;transition:all .15s}
+  .preset-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .preset-btn-del:hover{background:var(--err);border-color:var(--err);color:#fff}
+
+  /* simple scene generator */
+  .editor-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:20px;overflow:hidden}
+  .section-label-icon{display:flex;align-items:center;gap:8px}
+  .sg-type-seg{flex-wrap:wrap}
+  .sg-type-seg button{min-width:68px;flex:1 1 68px;padding-left:5px;padding-right:5px}
+  .sg-option-panel{display:none;margin-bottom:12px}
+  .sg-option-panel.visible{display:block}
+  .sg-inline-seg{display:flex;gap:6px;padding:0;margin:6px 0 0;background:transparent;border:0;border-radius:0;overflow:visible}
+  .sg-inline-seg button,.matrix-paint-target-btn{flex:1;border:1px solid var(--border);background:var(--panel2);padding:6px 10px;border-radius:var(--r-sm);font-family:var(--disp);font-weight:600;font-size:.75rem;color:var(--muted);cursor:pointer;transition:.15s}
+  .sg-inline-seg button:hover,.matrix-paint-target-btn:hover{border-color:var(--accent);color:var(--ink)}
+  .sg-inline-seg button.active,.matrix-paint-target-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .sg-row{display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+  .sg-row:last-child{margin-bottom:0}
+  .sg-field{display:flex;flex-direction:column;gap:6px}
+  .sg-field-speed{flex:1;min-width:160px}
+  .sg-field-palette{flex:2;min-width:220px}
+  .sg-label,.matrix-label{font-size:.75rem;color:var(--muted);font-weight:600}
+  .sg-palette-heading{display:flex;align-items:center;gap:6px}
+  .palette-reset-btn{width:24px;height:24px;background:transparent;border:none;color:var(--muted)}
+  .palette-reset-btn:hover{background:transparent;border:none;color:#fff}
+  .palette-reset-btn svg{width:16px;height:16px}
+  .sg-select,.matrix-select{padding:6px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);color:var(--ink);font-size:.82rem;cursor:pointer;outline:none}
+  .sg-select:focus,.matrix-select:focus{border-color:var(--accent)}
+  .sg-palette{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding-top:2px}
+  .sg-swatch{position:relative;width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.18);cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 0 10px color-mix(in srgb,var(--swatch-color,#fff) 30%,transparent)}
+  .sg-swatch:hover{transform:scale(1.1);border-color:rgba(255,255,255,.42);box-shadow:0 0 0 2px rgba(255,255,255,.08),0 0 16px color-mix(in srgb,var(--swatch-color,#fff) 55%,transparent)}
+  .sg-swatch-del{position:absolute;top:-6px;right:-6px;width:15px;height:15px;border-radius:50%;background:rgba(28,28,30,.95);color:var(--muted);border:1px solid rgba(255,255,255,.18);font-size:.55rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+  .sg-swatch-del:hover{background:var(--err);border-color:transparent;color:#fff}
+  .sg-swatch-add{display:flex;align-items:center;justify-content:center;background:transparent;border:1.5px dashed rgba(255,255,255,.18);color:var(--muted);font-size:1.1rem;font-weight:300}
+  .sg-swatch-add,.sg-swatch-add:hover{box-shadow:none}
+  .sg-swatch-add:hover{background:rgba(255,255,255,.07);border-color:var(--accent);color:var(--accent)}
+
+  /* matrix editor — docked layout */
+  .work-body:has(#pMatrix.active){overflow:hidden;padding:0;display:flex;flex-direction:column}
+  #pMatrix{max-width:none;margin:0}
+  #pMatrix.active{display:flex;flex-direction:column;flex:1;min-height:0;padding:16px 20px}
+  .matrix-dock{display:flex;flex:1;min-height:0;gap:10px}
+  .matrix-tools-col{display:flex;flex-direction:column;gap:3px;flex:none;width:32px}
+  .matrix-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+  .matrix-grid-wrap{flex:1;min-height:0;overflow:hidden;container-type:size}
+  .matrix-palette-dock{flex:none;display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px 8px;overflow:hidden}
+  .matrix-palette-header{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin:-10px -12px 6px;padding:2px 4px 2px 8px;background:var(--sunk);border-bottom:1px solid rgba(255,255,255,.06);border-radius:calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0}
+  .matrix-side-col{flex:none;width:190px;display:flex;flex-direction:column;gap:10px}
+  .matrix-layers-col,.matrix-animation-panel,.matrix-combined-panel{display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:10px}
+  .matrix-palette{display:flex;flex-wrap:wrap;gap:5px}
+  .matrix-swatch{position:relative;width:23px;height:23px;border-radius:4px;border:2px solid var(--border);cursor:pointer;transition:border-color .15s}
+  .matrix-swatch:hover{border-color:var(--accent)}
+  .matrix-swatch.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+  .matrix-swatch.bg-selected{border-color:var(--ok);box-shadow:0 0 0 2px var(--ok)}
+  .matrix-swatch-del{position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:var(--err);color:#fff;font-size:.55rem;line-height:1;display:none;align-items:center;justify-content:center;cursor:pointer}
+  .matrix-swatch:hover .matrix-swatch-del{display:flex}
+  .matrix-swatch-add{display:flex;align-items:center;justify-content:center;background:var(--panel2);color:var(--muted);font-size:1rem;font-weight:300}
+  .matrix-swatch-add:hover{background:var(--border);color:var(--ink)}
+  .matrix-swatch-none{display:flex;align-items:center;justify-content:center;background:var(--panel2);color:var(--muted)}
+  .matrix-swatch-none svg{width:16px;height:16px}
+  .matrix-bg-controls{margin-top:2px}
+  .matrix-bg-row{display:flex;flex-direction:column;gap:6px}
+  .matrix-pixel-header-left{display:flex;align-items:center;gap:6px}
+  .matrix-paint-target-tabs{display:flex;gap:4px;align-items:center}
+  .matrix-paint-target-btn{height:24px;padding:0 8px}
+  .matrix-layer-tabs{display:flex;flex-direction:column;gap:6px}
+  .matrix-layer-tab{height:62px;padding:6px 8px;font-size:.75rem;font-weight:600;background:var(--panel2);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;transition:all .15s;position:relative;display:grid;grid-template-columns:50px 1fr 26px;align-items:center;gap:10px;text-align:left}
+  .matrix-layer-tab:hover{border-color:var(--accent);color:var(--ink)}
+  .matrix-layer-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .matrix-layer-tab.has-pixels .matrix-layer-preview{border-color:color-mix(in srgb,var(--ok) 52%,var(--border))}
+  .matrix-layer-preview{display:grid;grid-template-columns:repeat(12,1fr);gap:1px;width:50px;aspect-ratio:12/11;padding:1px;background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:3px;overflow:hidden}
+  .matrix-layer-preview-pixel{aspect-ratio:1;background:rgba(255,255,255,.08)}
+  .matrix-combined-preview{display:grid;grid-template-columns:repeat(12,1fr);gap:1px;width:100%;aspect-ratio:12/11;padding:2px;background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+  .matrix-combined-preview-pixel{aspect-ratio:1;background:rgba(255,255,255,.08)}
+  .matrix-layer-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .matrix-layer-clear{width:26px;height:26px;padding:0;border:1px solid transparent;border-radius:4px;background:transparent;color:inherit;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.62;transition:all .15s}
+  .matrix-layer-clear:hover{opacity:1;background:var(--err);border-color:var(--err);color:#fff}
+  .matrix-layer-clear svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .matrix-tool-btn{width:28px;height:28px;font-size:.9rem;background:var(--panel2);border:1px solid var(--border);border-radius:4px;color:var(--ink);cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+  .matrix-tool-btn svg,.matrix-icon-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .matrix-tool-btn:hover{border-color:var(--accent)}
+  .matrix-tool-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .matrix-spacer{flex:1}
+  .matrix-icon-btn{width:30px;height:30px}
+  .matrix-icon-btn.danger:hover{background:var(--err);border-color:var(--err);color:#fff}
+  .matrix-icon-btn.palette-reset-btn{width:24px;height:24px;background:transparent;border:none;color:var(--muted)}
+  .matrix-icon-btn.palette-reset-btn:hover{background:transparent;border:none;color:#fff}
+  .matrix-head-actions{display:flex;gap:6px;align-items:center}
+  .matrix-head-actions .btn,.matrix-head-actions .matrix-select,.matrix-head-actions .matrix-icon-btn{height:32px}
+  .matrix-head-actions .matrix-select{width:180px;padding-top:0;padding-bottom:0}
+  .matrix-head-actions .matrix-icon-btn{width:32px}
+  .matrix-head-actions #matrixClearAll{margin-left:10px}
+  .matrix-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:1px;background:var(--bg);width:min(100cqw,calc(100cqh * 12 / 11));min-width:160px;touch-action:none;user-select:none}
+  .matrix-pixel{aspect-ratio:1;background:var(--panel2);border:none;cursor:pointer}
+  .matrix-pixel:hover{opacity:.85}
+  .matrix-select{width:100%}
+  .matrix-speed-row{display:flex;flex-direction:column;gap:6px}
+
+  /* music */
+  .music-seg{display:flex;gap:3px;background:var(--sunk);border-bottom:1px solid rgba(255,255,255,.06);margin:-14px -14px 0;border-radius:calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;overflow:hidden;padding:3px}
+  .music-seg button{flex:1;padding:6px 14px;border:none;border-radius:var(--r-sm);background:transparent;color:var(--muted);font-size:.75rem;font-family:var(--disp);font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap}
+  .music-seg button.active{background:var(--accent);color:#fff}
+  .music-panel{display:none;flex-direction:column;gap:12px}
+  .music-panel.visible{display:flex}
+  .music-sens-row{display:flex;flex-direction:column;gap:6px}
+  .music-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:9px}
+  .music-card{display:flex;align-items:center;justify-content:center;padding:10px 8px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--muted);cursor:pointer;transition:.15s}
+  .music-card:hover{border-color:var(--accent);color:var(--ink)}
+  .music-card.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .music-name{font-family:var(--disp);font-weight:600;font-size:.75rem;text-align:center}
+  .phone-mic-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px}
+  .phone-mic-controls{display:flex;flex-direction:column;gap:10px}
+  .phone-mic-field{display:flex;flex-direction:column;gap:5px}
+  .phone-mic-colour-row{display:flex;align-items:center;gap:10px}
+  .phone-mic-label{font-size:.75rem;font-weight:600;color:var(--muted)}
+  .phone-mic-select{width:100%;padding:6px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);color:var(--ink);font-size:.82rem;cursor:pointer;outline:none}
+  .phone-mic-select:focus{border-color:var(--accent)}
+  .phone-mic-toggle{height:32px;display:flex;align-items:center;gap:7px;padding:0 10px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);color:var(--ink);font-size:.78rem;white-space:nowrap;cursor:pointer}
+  .phone-mic-toggle input{accent-color:var(--accent)}
+  .phone-mic-colour{width:32px;height:32px;padding:0;border:2px solid var(--border);border-radius:4px;background:var(--phone-mic-color,#00ace7);cursor:pointer;box-shadow:0 0 0 1px rgba(255,255,255,.05),0 0 10px color-mix(in srgb,var(--phone-mic-color,#00ace7) 30%,transparent);transition:border-color .15s,box-shadow .15s,opacity .15s}
+  .phone-mic-colour:hover{border-color:var(--accent)}
+  .phone-mic-colour:disabled{opacity:.45;cursor:not-allowed}
+  .phone-mic-status{font-size:.78rem;color:var(--muted);min-height:1.2em}
+  .phone-mic-status.on{color:var(--ok)}
+  .phone-mic-meter{height:5px;border-radius:5px;background:var(--sunk);overflow:hidden}
+  .phone-mic-meter-fill{height:100%;width:0%;background:var(--accent);transition:width .08s linear}
+  @media (max-width:760px){.phone-mic-colour-row{align-items:stretch}.phone-mic-toggle{flex:1}}
+
+  /* log */
+  .log-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;font-family:var(--mono);font-size:.75rem;line-height:1.65;min-height:200px;max-height:calc(100vh - 160px);overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--muted)}
+  .log-box .tx{color:#7dd3fc}
+  .log-box .rx{color:#86efac}
+  .log-box .info{color:#fbbf24}
+  .log-box .err{color:var(--err)}
+
+  /* modals */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:100}
+  .modal{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);width:400px;max-width:94vw;box-shadow:0 12px 48px rgba(0,0,0,.5)}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:15px 19px;border-bottom:1px solid var(--border)}
+  .modal-header h2{font-size:.95rem;font-weight:700}
+  .modal-close{font-size:1.3rem;cursor:pointer;color:var(--muted);line-height:1;background:none;border:none;padding:0}
+  .modal-close:hover{color:var(--ink)}
+  .modal-body{padding:16px 19px}
+  .modal-copy{font-size:.84rem;line-height:1.5;color:var(--muted);margin-bottom:10px}
+  .modal-copy:last-child{margin-bottom:0}
+  .modal-footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 19px;border-top:1px solid var(--border)}
+  .modal-label{display:block;font-size:.75rem;color:var(--muted);margin:11px 0 5px;font-weight:600}
+  .modal-label:first-of-type{margin-top:0}
+  .modal-body>.slider-label{margin:11px 0 5px}
+  .modal-input{width:100%;padding:8px 11px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--ink);font-size:.85rem;outline:none;transition:border-color .15s}
+  .modal-input:focus{border-color:var(--accent)}
+  .modal-input::placeholder{color:var(--muted);opacity:.5}
+  .modal-row{display:flex;gap:10px}
+  .modal-status{margin-top:11px;font-size:.82rem;min-height:1.4em;word-break:break-word}
+  .modal-status.ok{color:var(--ok)}
+  .modal-status.err{color:var(--err)}
+  .modal-color{width:100%;height:46px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel2);cursor:pointer}
+  .modal-color::-webkit-color-swatch-wrapper{padding:0}
+  .modal-color::-webkit-color-swatch{border:none;border-radius:4px}
+  .modal-slider{width:100%;margin:4px 0 8px;accent-color:var(--accent);background:transparent;cursor:pointer}
+  .modal-select{width:100%;padding:8px 11px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--ink);font-size:.88rem;cursor:pointer}
+  .modal-select:focus{outline:none;border-color:var(--accent)}
+  .wifi-setup-form .modal-body,.bedtime-form .modal-body{display:flex;flex-direction:column;gap:10px}
+  .modal-field{display:flex;flex-direction:column;gap:5px}
+  .modal-field .modal-label{margin:0}
+  .modal-field>.slider-label{margin:0}
+  .colour-preset-modal{width:430px}
+  .colour-preset-editor-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px;overflow:hidden}
+  .colour-preset-editor-card .mode-seg{margin:-16px -16px 16px}
+  .preset-modepane{display:none}
+  .preset-modepane.active{display:flex;flex-direction:column;gap:6px;animation:modefade .18s}
+  .colour-preset-editor-card .wheel-wrap{max-width:210px}
+  .bedtime-toggle{display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer}
+  .bedtime-toggle input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent);cursor:pointer}
+  .bedtime-toggle span{font-size:.9rem}
+  input[type=time]{color-scheme:dark}
+
+  /* fw grid */
+  .fw-grid{display:flex;flex-direction:column}
+  .fw-item{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--border)}
+  .fw-item:last-child{border-bottom:none}
+  .fw-label{font-size:.76rem;color:var(--muted);white-space:nowrap;flex-shrink:0}
+  .fw-val{font-family:var(--mono);font-size:.82rem;text-align:right;word-break:break-all}
+
+  /* ---- disconnected state ---- */
+  body:not(.ble-connected) .scene-badge:not(.preset-scene-badge){
+    opacity:.45;cursor:not-allowed;pointer-events:none;
+  }
+  body:not(.ble-connected) #scenePresetRow,
+  body:not(.ble-connected) #colourPresetRow{
+    position:relative;min-height:36px;pointer-events:none;color:transparent;
+  }
+  body:not(.ble-connected) #scenePresetRow>*,
+  body:not(.ble-connected) #colourPresetRow>*{
+    visibility:hidden;
+  }
+  body:not(.ble-connected) #scenePresetRow::after,
+  body:not(.ble-connected) #colourPresetRow::after{
+    content:"Not connected";
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:.78rem;color:var(--muted2);font-style:italic;
+  }
+  body:not(.ble-connected) #brightnessSlider{opacity:.45;pointer-events:none}
+  body:not(.ble-connected) #cctSlider{opacity:.45;pointer-events:none}
+  body:not(.ble-connected) #colWheel{opacity:.45;cursor:not-allowed;pointer-events:none}
+  body:not(.ble-connected) .wheel-preset-markers{pointer-events:none}
+  body:not(.ble-connected) .warmth-preset-markers{pointer-events:none}
+  body:not(.ble-connected) #colourPresetEditToggle{opacity:.45;pointer-events:none}
+  body:not(.ble-connected) #sgApply{opacity:.45;cursor:not-allowed;pointer-events:none}
+  body:not(.ble-connected) #matrixApply{opacity:.45;cursor:not-allowed;pointer-events:none}
+  body:not(.ble-connected) .music-card{opacity:.45;cursor:not-allowed;pointer-events:none}
+  body:not(.ble-connected) #musicSensitivity{opacity:.45;pointer-events:none}
+  body:not(.ble-connected) #phoneMicToggle{opacity:.45;cursor:not-allowed;pointer-events:none}
+  body:not(.ble-connected) #phoneMicModeSeg button{opacity:.45;cursor:not-allowed;pointer-events:none}
+  body:not(.ble-connected) #phoneMicColor{opacity:.45;cursor:not-allowed;pointer-events:none}
+  body:not(.ble-connected) #phoneMicAutoColor{opacity:.45;pointer-events:none}
+  body:not(.ble-connected) #settingsBedtimeBtn,
+  body:not(.ble-connected) #settingsWifiBtn,
+  body:not(.ble-connected) #settingsFwBtn{opacity:.45;pointer-events:none}
+
+  @media(max-width:840px){
+    body{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    .device{flex-direction:row;flex-wrap:wrap;align-items:center;gap:0 10px;overflow:visible;border-right:none;border-bottom:1px solid var(--border);padding:12px 16px;height:auto}
+    .brand{border:none;padding:0;flex:1}
+    #toggleBtnBrand{display:block;margin-left:auto!important;opacity:0;pointer-events:none;transition:opacity .18s ease}
+    #settingsBtn{margin-left:0}
+    body:has(#pMatrix.active) #toggleBtnBrand{opacity:1;pointer-events:auto}
+    #bulbCardWrap{flex:0 0 100%;margin-top:10px;transition:max-height .22s ease,opacity .18s ease,margin-top .22s ease}
+    #bulbCardWrap.collapsed{margin-top:0}
+    .device>.dc{display:flex;flex:0 0 100%;max-height:54px;margin-top:10px;overflow:hidden;transition:max-height .22s ease,opacity .18s ease,margin-top .22s ease}
+    body:has(#pMatrix.active) .device>.dc{max-height:0;opacity:0;margin-top:0;pointer-events:none}
+    .dc-divide{display:none}
+  }
+  @media(max-width:760px){
+    .tabs{padding:0;overflow-x:auto;scrollbar-width:none}
+    .tabs::-webkit-scrollbar{display:none}
+    .tabs button{flex:1;padding:11px 8px;font-size:.75rem}
+    .tabs button.active::after{left:8px;right:8px}
+    .work{overflow:visible;height:auto}
+    .work-body{overflow:visible}
+    body{height:auto;overflow-y:auto}
+    .work-body:has(#pMatrix.active){overflow:visible;display:block}
+    .work:has(#pMatrix.active){overflow:visible;height:auto}
+    body:has(#pMatrix.active){height:auto;overflow-y:auto}
+    #pMatrix.active{display:block;padding:10px;gap:6px;min-height:auto}
+    #pMatrix .pane-head{align-items:stretch;gap:6px;margin-bottom:6px;min-height:0}
+    .matrix-layers-col{background:none;border:none;border-radius:0;padding:0}
+    #pMatrix .pane-head h2{display:none}
+    .matrix-head-actions{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+    .matrix-head-actions::before{content:"";order:2;flex:0 0 100%;height:0}
+    .matrix-head-actions .matrix-select{order:1;width:auto;flex:1 1 calc(100% - 76px)}
+    .matrix-head-actions .matrix-icon-btn{order:1;width:32px;flex:0 0 32px}
+    .matrix-head-actions .btn{order:3;flex:0 0 calc(50% - 3px);width:auto;min-width:0;padding-left:6px;padding-right:6px;overflow:hidden}
+    #pMatrix .matrix-head-actions{row-gap:4px}
+    #pMatrix .matrix-head-actions .btn,#pMatrix .matrix-head-actions .matrix-select,#pMatrix .matrix-head-actions .matrix-icon-btn{height:30px}
+    #pMatrix .matrix-head-actions .btn{font-size:0}
+    #pMatrix .matrix-head-actions .btn::after{font-size:.75rem;white-space:nowrap}
+    .matrix-head-actions #matrixClearAll{margin-left:0}
+    .matrix-head-actions #matrixClearAll::after{content:"Clear"}
+    .matrix-head-actions #matrixApply::after{content:"Apply"}
+    #pGenerator .matrix-head-actions #sgApply{flex-basis:100%}
+    .matrix-dock{display:grid;grid-template-columns:32px minmax(0,1fr);grid-template-areas:"layers layers" "tools grid" "animation animation" "palette palette";gap:6px;flex:none;min-height:auto}
+    .matrix-main,.matrix-side-col{display:contents}
+    .matrix-layers-col{grid-area:layers;padding:0}
+    .matrix-layer-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+    .matrix-layer-tab{height:38px;padding:4px 6px;grid-template-columns:minmax(0,1fr) 22px;gap:5px;font-size:.7rem}
+    .matrix-layer-preview{display:none}
+    .matrix-layer-clear{width:22px;height:22px}
+    .matrix-tools-col{grid-area:tools;width:32px;gap:4px}
+    .matrix-tool-btn{width:32px;height:32px}
+    .matrix-grid-wrap{grid-area:grid;min-height:auto;overflow:visible;container-type:inline-size;display:flex;justify-content:center}
+    .matrix-grid{width:min(100cqw,max(190px,calc((100svh - 320px) * 12 / 11)));max-width:100%;min-width:0}
+    .matrix-animation-panel{grid-area:animation;padding:8px;display:flex;flex-direction:column;gap:7px}
+    .matrix-speed-row{min-width:0}
+    .matrix-combined-panel{display:none}
+    .matrix-palette-dock{grid-area:palette;padding:8px;gap:7px}
+    .matrix-palette{gap:6px}
+    .matrix-swatch{width:24px;height:24px}
+    .sg-palette{gap:8px}
+    .sg-swatch{width:30px;height:30px}
+  }
+</style>
+</head>
+<body>
+
+<aside class="device">
+  <div class="brand">
+    <div class="mark">
+      <img src="assets/icon.png" alt="Govee">
+      <div class="conn-dot" id="connDot"></div>
+    </div>
+    <div class="nm">Govee<small>Table Lamp 2</small></div>
+    <button class="pwr" id="toggleBtnBrand" disabled onclick="togglePower()" title="Toggle power" aria-label="Toggle power" style="margin-left:auto"></button>
+    <button class="icon-btn" id="settingsBtn" onclick="openSettings()" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <button class="btn btn-primary btn-sm" id="connectBtn" onclick="connectButtonAction()" title="Connect" style="height:28px;padding-top:0;padding-bottom:0;display:flex;align-items:center;justify-content:center;gap:5px">
+      <span class="btn-label">Connect</span>
+      <span class="btn-spinner"></span>
+      <svg class="reload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19.933 13.041a8 8 0 1 1 -9.925 -8.788c3.899 -1 7.935 1.007 9.425 4.747"/><path d="M20 4v5h-5"/></svg>
+    </button>
+    <div class="conn-error hidden" id="connError">
+      <span class="conn-error-msg" id="connErrorMsg"></span>
+      <span class="conn-error-close" onclick="document.getElementById('connError').classList.remove('visible');setTimeout(()=>document.getElementById('connError').classList.add('hidden'),250)">&times;</span>
+    </div>
+  </div>
+
+  <div id="bulbCardWrap">
+  <div class="bulb-card" id="bulbCard">
+    <div class="bulb-card__inner">
+    <img class="bulb-icon" src="assets/lamp.png" alt="Lamp">
+    <div class="bulb-info">
+      <div class="bulb-top">
+        <span class="bulb-status" id="bulbStatus">Off</span>
+      </div>
+      <span class="bulb-mode" id="bulbMode">—</span>
+      <div class="bulb-detail" id="bulbDetail"></div>
+    </div>
+    <button class="pwr" id="toggleBtn" disabled onclick="togglePower()" title="Toggle power" aria-label="Toggle power"></button>
+    </div>
+  </div>
+  </div>
+
+  <div class="dc">
+    <div class="dc-label" id="brightnessLabel">Brightness <span class="v" id="brightnessSliderVal">50</span></div>
+    <track-slider id="brightnessSlider" min="0" max="100" value="50" aria-label="Brightness" aria-labelledby="brightnessLabel"></track-slider>
+  </div>
+
+</aside>
+
+<main class="work">
+  <div class="tabs" id="mainTabs" role="tablist">
+    <button class="active" data-pane="pScenes" role="tab" aria-selected="true" aria-controls="pScenes">Scenes</button>
+    <button data-pane="pColour" role="tab" aria-selected="false" aria-controls="pColour">Colour</button>
+    <button data-pane="pGenerator" role="tab" aria-selected="false" aria-controls="pGenerator">Custom</button>
+    <button data-pane="pMatrix" role="tab" aria-selected="false" aria-controls="pMatrix">Advanced</button>
+    <button data-pane="pMusic" role="tab" aria-selected="false" aria-controls="pMusic">Music</button>
+  </div>
+
+  <div class="work-body">
+
+    <!-- SCENES -->
+    <section class="pane active" id="pScenes">
+      <div class="pane-head">
+        <h2>Scenes</h2>
+        <div class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          <input type="text" id="sceneSearch" placeholder="Search scenes…" aria-label="Search scenes">
+        </div>
+      </div>
+      <div class="scene-browser">
+        <div class="scene-controls">
+          <div class="chips" id="sceneTabs"></div>
+        </div>
+        <div class="scene-grid" id="sceneGrid"></div>
+      </div>
+
+      <div class="editor-panel" style="padding-bottom:10px">
+        <div class="preset-card-header"><svg width="16" height="16" viewBox="2 38 82 82" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M31.158 87.72a23.498 23.498 0 0 1-10.506-26.36 23.498 23.498 0 0 1 22.533-17.252 23.498 23.498 0 0 1 22.707 17.02 23.498 23.498 0 0 1-10.236 26.468" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="56.148" cy="90.02" r="23.498" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="30.324" cy="90.02" rx="23.498" ry="23.498" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>Scene Presets<span style="font-size:.75rem;font-weight:400;color:var(--muted2)">drag to reorder</span></div>
+        <div class="scene-grid" id="scenePresetRow">—</div>
+      </div>
+    </section>
+
+    <!-- COLOUR -->
+    <section class="pane" id="pColour">
+      <div class="pane-head">
+        <h2>Colour</h2>
+      </div>
+      <div class="editor-panel">
+        <div class="mode-seg" id="modeSeg">
+          <button class="active" data-m="white"><span class="ic" style="background:linear-gradient(90deg,#ffb35c,#dceaff)"></span>White</button>
+          <button data-m="color"><span class="ic" style="background:conic-gradient(from 0deg,#ff5e5e,#ffd23f,#3fe07a,#1fd6ff,#9b51e0,#ff5e5e)"></span>Colour</button>
+        </div>
+
+        <div class="modepane active dc" data-m="white">
+          <div class="dc-label" id="cctLabel">Warmth <span class="v" id="cctSliderVal">4000K</span></div>
+          <div class="warmth-slider-wrap">
+            <track-slider id="cctSlider" min="2700" max="6500" step="100" value="4000" gradient="linear-gradient(90deg,#ff8c00,#ffb35c,#fff4e6,#ffffff)" aria-label="Colour temperature" aria-labelledby="cctLabel"></track-slider>
+            <div class="warmth-preset-markers" id="cctPresetMarkers" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="modepane" data-m="color">
+          <div class="wheel-wrap">
+            <canvas id="colWheel" width="440" height="440" aria-label="Colour picker wheel — drag to select a colour" role="img"></canvas>
+            <div class="wheel-preset-markers" id="colPresetMarkers" aria-hidden="true"></div>
+            <div class="wheel-handle" id="colHandle"></div>
+          </div>
+          <div class="color-readout">
+            <span class="color-swatch" id="colSwatch"></span>
+            <div class="color-info">
+              <div class="hx" id="colorHex">#FFFFFF</div>
+              <div class="rg" id="colorRgb">255, 255, 255</div>
+            </div>
+          </div>
+          <input type="color" id="colorPicker" value="#ffffff" style="display:none">
+        </div>
+      </div>
+      <div class="editor-panel" style="padding-bottom:10px">
+        <div class="preset-card-header"><svg width="16" height="16" viewBox="20 7 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M42.77 22.184c-.765 4.338-4.534 7.5-8.94 7.5s-8.175-3.162-8.94-7.5h6.53" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24.89 19.035c.765-4.338 4.534-7.5 8.94-7.5s8.175 3.162 8.94 7.5h-6.53" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Colour Presets<span class="colour-preset-drag-hint">drag to reorder</span><button class="preset-edit-toggle" id="colourPresetEditToggle" title="Edit presets" aria-label="Edit colour presets" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 15l8.385 -8.415a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3"/><path d="M16 5l3 3"/><path d="M9 7.07a7 7 0 0 0 1 13.93a7 7 0 0 0 6.929 -6"/></svg></button></div>
+        <div class="preset-row" id="colourPresetRow">—</div>
+      </div>
+    </section>
+
+    <!-- GENERATOR -->
+    <section class="pane" id="pGenerator">
+      <div class="pane-head">
+        <h2>Custom Scenes</h2>
+        <div class="matrix-head-actions">
+          <select id="sgPresetSelect" class="sg-select matrix-select"></select>
+          <button class="icon-btn matrix-icon-btn" id="sgSavePreset" title="Save preset" aria-label="Save preset">💾</button>
+          <button class="icon-btn matrix-icon-btn danger" id="sgDeletePreset" title="Delete preset" aria-label="Delete preset">🗑️</button>
+          <button class="btn btn-primary" id="sgApply">Apply Scene</button>
+        </div>
+      </div>
+      <div class="editor-panel">
+        <div class="mode-seg sg-type-seg" id="sgTypeSeg"></div>
+        <div class="sg-option-panel" id="sgDreamOptions">
+          <div class="sg-label">Direction</div>
+          <div class="sg-inline-seg" id="sgDreamDirection">
+            <button type="button" data-direction="down">Down</button>
+            <button type="button" data-direction="up">Up</button>
+          </div>
+        </div>
+        <div class="sg-option-panel" id="sgGraffitiOptions">
+          <div class="sg-label">Variant</div>
+          <div class="sg-inline-seg" id="sgGraffitiVariant">
+            <button type="button" data-variant="1">1</button>
+            <button type="button" data-variant="2">2</button>
+            <button type="button" data-variant="3">3</button>
+            <button type="button" data-variant="4">4</button>
+          </div>
+        </div>
+        <div class="sg-row">
+          <div class="sg-field sg-field-speed">
+            <label class="slider-label"><span>Speed</span><span class="v" id="sgSpeedVal">50</span></label>
+            <track-slider id="sgSpeed" min="0" max="100" value="50"></track-slider>
+          </div>
+        </div>
+        <div class="sg-row">
+          <div class="sg-field sg-field-palette">
+            <div class="sg-palette-heading">
+              <label class="sg-label">Colour Palette</label>
+              <button class="icon-btn matrix-icon-btn palette-reset-btn" id="sgReset" title="Reset palette" aria-label="Reset palette"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3.06 13a9 9 0 1 0 .49 -4.087"/><path d="M3 4.001v5h5"/><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/></svg></button>
+            </div>
+            <div class="sg-palette" id="sgPalette"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MATRIX -->
+    <section class="pane" id="pMatrix">
+      <div class="pane-head">
+        <h2>Advanced Editor</h2>
+        <div class="matrix-head-actions">
+          <select id="matrixPresetSelect" class="sg-select matrix-select"></select>
+          <button class="icon-btn matrix-icon-btn" id="matrixSavePreset" title="Save preset" aria-label="Save preset">💾</button>
+          <button class="icon-btn matrix-icon-btn danger" id="matrixDeletePreset" title="Delete preset" aria-label="Delete preset">🗑️</button>
+          <button class="btn btn-danger btn-sm" id="matrixClearAll">Clear all</button>
+          <button class="btn btn-primary" id="matrixApply">Apply Matrix</button>
+        </div>
+      </div>
+      <div class="matrix-dock">
+        <!-- Left: floating tool column -->
+        <div class="matrix-tools-col">
+          <button class="matrix-tool-btn active" data-tool="pencil" title="Pixel" aria-label="Pixel tool" aria-pressed="true">✏️</button>
+          <button class="matrix-tool-btn" data-tool="brush" title="Brush" aria-label="Brush tool" aria-pressed="false">🖌️</button>
+          <button class="matrix-tool-btn" data-tool="line" title="Line" aria-label="Line tool" aria-pressed="false">📏</button>
+          <button class="matrix-tool-btn" data-tool="circle" title="Circle" aria-label="Circle tool" aria-pressed="false">⭕</button>
+          <button class="matrix-tool-btn" data-tool="rect" title="Rect" aria-label="Rectangle tool" aria-pressed="false">⬜</button>
+          <button class="matrix-tool-btn" data-tool="fill" title="Fill" aria-label="Fill tool" aria-pressed="false">🪣</button>
+          <button class="matrix-tool-btn" data-tool="picker" title="Pick colour" aria-label="Colour picker tool" aria-pressed="false">💧</button>
+          <button class="matrix-tool-btn" data-tool="eraser" title="Erase" aria-label="Eraser tool" aria-pressed="false">🧽</button>
+        </div>
+        <!-- Center: grid fills remaining space, palette docked at bottom -->
+        <div class="matrix-main">
+          <div class="matrix-grid-wrap">
+            <div class="matrix-grid" id="matrixGrid"></div>
+          </div>
+          <div class="matrix-palette-dock">
+            <div class="matrix-palette-header">
+              <div class="matrix-pixel-header-left">
+                <div class="matrix-label">Colour</div>
+                <div class="matrix-paint-target-tabs" id="matrixPaintTargetTabs">
+                  <button class="matrix-paint-target-btn active" id="matrixPaintFg" data-paint-target="fg">Foreground</button>
+                  <button class="matrix-paint-target-btn" id="matrixPaintBg" data-paint-target="bg">Background</button>
+                </div>
+              </div>
+              <button class="icon-btn matrix-icon-btn palette-reset-btn" id="matrixReset" title="Reset palette" aria-label="Reset palette"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3.06 13a9 9 0 1 0 .49 -4.087"/><path d="M3 4.001v5h5"/><path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/></svg></button>
+            </div>
+            <div class="matrix-palette" id="matrixPalette"></div>
+            <div class="matrix-bg-controls" id="matrixBgControls" style="display:none">
+              <div class="matrix-bg-row">
+                <div class="slider-label"><span>Brightness</span><span class="v" id="matrixBgBrightnessVal">100</span></div>
+                <track-slider id="matrixBgBrightness" min="0" max="100" value="100"></track-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Right: layers and animation panels -->
+        <div class="matrix-side-col">
+          <div class="matrix-layers-col">
+            <div class="matrix-layer-tabs">
+              <button class="matrix-layer-tab active" id="matrixLayerTab0" type="button"><span class="matrix-layer-preview" aria-hidden="true"></span><span class="matrix-layer-name">Layer 1</span><span class="matrix-layer-clear" role="button" tabindex="0" title="Clear layer" aria-label="Clear layer 1">🗑️</span></button>
+              <button class="matrix-layer-tab" id="matrixLayerTab1" type="button"><span class="matrix-layer-preview" aria-hidden="true"></span><span class="matrix-layer-name">Layer 2</span><span class="matrix-layer-clear" role="button" tabindex="0" title="Clear layer" aria-label="Clear layer 2">🗑️</span></button>
+              <button class="matrix-layer-tab" id="matrixLayerTab2" type="button"><span class="matrix-layer-preview" aria-hidden="true"></span><span class="matrix-layer-name">Layer 3</span><span class="matrix-layer-clear" role="button" tabindex="0" title="Clear layer" aria-label="Clear layer 3">🗑️</span></button>
+            </div>
+          </div>
+          <div class="matrix-animation-panel">
+            <div class="matrix-label">Animation</div>
+            <select id="matrixDirection" class="sg-select matrix-select">
+              <option value="twinkle">Twinkle</option>
+              <option value="up">Up</option>
+              <option value="down">Down</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="up-left">Up left</option>
+              <option value="up-right">Up right</option>
+              <option value="down-left">Down left</option>
+              <option value="down-right">Down right</option>
+            </select>
+            <div class="matrix-speed-row">
+              <div class="slider-label"><span>Speed</span><span class="v" id="matrixSpeedVal">80</span></div>
+              <track-slider id="matrixSpeed" min="0" max="100" value="80"></track-slider>
+            </div>
+          </div>
+          <div class="matrix-combined-panel">
+            <div class="matrix-label">Preview</div>
+            <div class="matrix-combined-preview" id="matrixCombinedPreview" aria-label="Combined layer preview"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MUSIC -->
+    <section class="pane" id="pMusic">
+      <div class="pane-head">
+        <h2>Music Mode</h2>
+      </div>
+      <div class="phone-mic-panel" style="gap:14px">
+        <div class="music-seg" id="musicSeg">
+          <button class="active" data-panel="musicDevicePanel">Device Mic</button>
+          <button data-panel="musicBrowserPanel">Browser Mic</button>
+        </div>
+        <div class="music-panel visible" id="musicDevicePanel">
+          <div class="slider-label"><span>Music Scenes</span></div>
+          <div class="music-grid" id="musicGrid"></div>
+          <div class="music-sens-row">
+            <div class="slider-label"><span>Sensitivity</span><span class="v"><span id="musicSensVal">100</span>%</span></div>
+            <track-slider id="musicSensitivity" min="0" max="100" value="100"></track-slider>
+          </div>
+        </div>
+        <div class="music-panel" id="musicBrowserPanel">
+          <div class="phone-mic-controls">
+            <div class="phone-mic-field">
+              <label class="phone-mic-label">Mode</label>
+              <div class="sg-inline-seg" id="phoneMicModeSeg">
+                <button type="button" class="active" data-mode="party">Party</button>
+                <button type="button" data-mode="dynamic">Dynamic</button>
+                <button type="button" data-mode="soft">Soft</button>
+              </div>
+            </div>
+            <div class="phone-mic-field">
+              <label class="phone-mic-label">Colour</label>
+              <div class="phone-mic-colour-row">
+                <label class="phone-mic-toggle">
+                  <input type="checkbox" id="phoneMicAutoColor" checked>
+                  Auto colour
+                </label>
+                <button class="phone-mic-colour" id="phoneMicColor" type="button" title="Fixed colour" style="--phone-mic-color:#00ace7"></button>
+              </div>
+            </div>
+          </div>
+          <div class="phone-mic-meter"><div class="phone-mic-meter-fill" id="phoneMicMeter"></div></div>
+          <div class="phone-mic-status" id="phoneMicStatus">Idle</div>
+          <div>
+            <button class="btn btn-primary" id="phoneMicToggle">Start Browser Mic</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOG -->
+    <section class="pane" id="pLog">
+      <div class="pane-head">
+        <h2>Packet Log</h2>
+      </div>
+      <div class="log-box" id="log"></div>
+    </section>
+
+  </div>
+</main>
+
+<!-- modals -->
+<div class="settings-popover hidden" id="settingsOverlay">
+      <button class="settings-modal-row" id="settingsBedtimeBtn" onclick="openBedtimeFromSettings()">
+        <span class="row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008"/></svg></span>
+        <span class="row-text">Bedtime Switch<span class="row-label" id="bedtimeBtnSub">Tap-to-wake schedule &amp; sensitivity</span></span>
+        <span class="row-chev">›</span>
+      </button>
+      <button class="settings-modal-row" id="settingsWifiBtn" onclick="openWifiFromSettings()">
+        <span class="row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 18l.01 0"/><path d="M9.172 15.172a4 4 0 0 1 5.656 0"/><path d="M6.343 12.343a8 8 0 0 1 11.314 0"/><path d="M3.515 9.515c4.686 -4.687 12.284 -4.687 17 0"/></svg></span>
+        <span class="row-text">WiFi Setup<span class="row-label">Provision SSID and password</span></span>
+        <span class="row-chev">›</span>
+      </button>
+      <button class="settings-modal-row" id="settingsFwBtn" onclick="openFwFromSettings()">
+        <span class="row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 10h3v-3l-3.5 -3.5a6 6 0 0 1 8 8l6 6a2 2 0 0 1 -3 3l-6 -6a6 6 0 0 1 -8 -8l3.5 3.5"/></svg></span>
+        <span class="row-text">Firmware &amp; Identity<span class="row-label">BLE/MCU versions and device ID</span></span>
+        <span class="row-chev">›</span>
+      </button>
+      <button class="settings-modal-row" onclick="openLogFromSettings()">
+        <span class="row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2"/><path d="M9 9l1 0"/><path d="M9 13l6 0"/><path d="M9 17l6 0"/></svg></span>
+        <span class="row-text">Packet Log<span class="row-label">BLE TX/RX debug log</span></span>
+        <span class="row-chev">›</span>
+      </button>
+</div>
+
+<div class="modal-overlay hidden" id="unsupportedBleOverlay" onclick="closeUnsupportedBleOnOuter(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Web Bluetooth Unavailable</h2>
+      <button class="modal-close" onclick="closeUnsupportedBle()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-copy">This browser does not support Web Bluetooth, so the dashboard cannot connect to a Govee device from here.</p>
+      <p class="modal-copy">Try a Web Bluetooth capable browser such as Chrome or Edge, and open the page over HTTPS or localhost.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeUnsupportedBle()">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="fwOverlay" onclick="closeFwOnOuter(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Firmware &amp; Identity</h2>
+      <button class="modal-close" onclick="closeFw()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="fw-grid">
+        <div class="fw-item"><div class="fw-label">WiFi module</div><div class="fw-val" id="fwWifi">—</div></div>
+        <div class="fw-item"><div class="fw-label">MCU</div><div class="fw-val" id="fwMcu">—</div></div>
+        <div class="fw-item"><div class="fw-label">BLE fw (aa 20)</div><div class="fw-val" id="fw20">—</div></div>
+        <div class="fw-item"><div class="fw-label">BLE fw (aa 21)</div><div class="fw-val" id="fw21">—</div></div>
+        <div class="fw-item"><div class="fw-label">Device ID</div><div class="fw-val" id="devId">—</div></div>
+        <div class="fw-item"><div class="fw-label">Preset slots</div><div class="fw-val" id="presetCounts">—</div></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeFw()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="setupOverlay" onclick="closeSetupOnOuter(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>WiFi Setup</h2>
+      <button class="modal-close" onclick="closeSetup()" aria-label="Close">&times;</button>
+    </div>
+    <form class="wifi-setup-form" onsubmit="event.preventDefault(); sendWifiSetup();">
+      <div class="modal-body">
+        <div class="modal-field">
+          <label class="modal-label" for="setupSsid">SSID</label>
+          <input class="modal-input" id="setupSsid" type="text" placeholder="e.g. MyWifi" autocomplete="off" autofocus>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label" for="setupPwd">Password</label>
+          <input class="modal-input" id="setupPwd" type="password" placeholder="WiFi password">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label" for="setupTz">UTC offset</label>
+          <select class="modal-input modal-select" id="setupTz"></select>
+        </div>
+        <div class="modal-status" id="setupStatus"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" type="button" onclick="closeSetup()">Cancel</button>
+        <button class="btn btn-primary" id="setupSendBtn" type="submit">Provision WiFi</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="bedtimeOverlay" onclick="closeBedtimeOnOuter(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Bedtime Switch</h2>
+      <button class="modal-close" onclick="closeBedtime()" aria-label="Close">&times;</button>
+    </div>
+    <form class="bedtime-form" onsubmit="event.preventDefault(); saveBedtime();">
+      <div class="modal-body">
+        <label class="bedtime-toggle">
+          <input type="checkbox" id="bedtimeEnabled">
+          <span>Enable Bedtime</span>
+        </label>
+        <div class="modal-field">
+          <label class="modal-label" for="bedtimeStart">Start time</label>
+          <input class="modal-input" id="bedtimeStart" type="time" value="23:00" autofocus>
+        </div>
+        <div class="modal-field">
+          <label class="modal-label" for="bedtimeEnd">End time</label>
+          <input class="modal-input" id="bedtimeEnd" type="time" value="07:00">
+        </div>
+        <div class="modal-field">
+          <label class="slider-label"><span>Tap sensitivity</span><span class="v"><span id="bedtimeSensVal">70</span>%</span></label>
+          <track-slider id="bedtimeSensitivity" min="0" max="100" value="70"></track-slider>
+        </div>
+        <div class="modal-field">
+          <label class="slider-label"><span>Wake brightness</span><span class="v"><span id="bedtimeBriVal">20</span>%</span></label>
+          <track-slider id="bedtimeBrightness" min="0" max="100" value="20"></track-slider>
+        </div>
+        <div class="modal-status" id="bedtimeStatus"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" type="button" onclick="closeBedtime()">Cancel</button>
+        <button class="btn btn-primary" id="bedtimeSaveBtn" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="colourPresetModal">
+  <div class="modal colour-preset-modal">
+    <div class="modal-header">
+      <h2>Edit Colour Preset</h2>
+      <button class="modal-close" onclick="closeColourPresetEditor()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="colour-preset-editor-card">
+        <div class="mode-seg" id="colourPresetSeg">
+          <button class="active" data-m="white"><span class="ic" style="background:linear-gradient(90deg,#ffb35c,#dceaff)"></span>White</button>
+          <button data-m="color"><span class="ic" style="background:conic-gradient(from 0deg,#ff5e5e,#ffd23f,#3fe07a,#1fd6ff,#9b51e0,#ff5e5e)"></span>Colour</button>
+        </div>
+
+        <div class="preset-modepane active dc" data-m="white" id="colourPresetCctGroup">
+          <div class="dc-label">Warmth <span class="v" id="colourPresetCctVal">4000K</span></div>
+          <track-slider id="colourPresetCct" min="2700" max="6500" step="100" value="4000" gradient="linear-gradient(90deg,#ff8c00,#ffb35c,#fff4e6,#ffffff)"></track-slider>
+        </div>
+
+        <div class="preset-modepane" data-m="color" id="colourPresetRgbGroup">
+          <div class="wheel-wrap">
+            <canvas id="colourPresetWheel" width="440" height="440" aria-label="Colour picker wheel — drag to select a colour" role="img"></canvas>
+            <div class="wheel-handle" id="colourPresetHandle"></div>
+          </div>
+          <div class="color-readout">
+            <span class="color-swatch" id="colourPresetSwatch"></span>
+            <div class="color-info">
+              <div class="hx" id="colourPresetHex">#FFFFFF</div>
+              <div class="rg" id="colourPresetRgbText">255, 255, 255</div>
+            </div>
+          </div>
+          <input type="color" id="colourPresetRgb" value="#ffffff" style="display:none">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeColourPresetEditor()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveColourPreset()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="sgColorModal">
+  <div class="modal colour-preset-modal">
+    <div class="modal-header">
+      <h2 id="sgColorTitle">Edit Palette Colour</h2>
+      <button class="modal-close" onclick="closeSgColorEditor()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="wheel-wrap">
+        <canvas id="sgColorWheel" width="440" height="440" aria-label="Colour picker wheel — drag to select a colour" role="img"></canvas>
+        <div class="wheel-handle" id="sgColorHandle"></div>
+      </div>
+      <div class="color-readout">
+        <span class="color-swatch" id="sgColorSwatch"></span>
+        <div class="color-info">
+          <div class="hx" id="sgColorHex">#FFFFFF</div>
+          <div class="rg" id="sgColorRgbText">255, 255, 255</div>
+        </div>
+      </div>
+      <div class="dc" style="margin-top:14px">
+        <div class="dc-label">Brightness <span class="v" id="sgColorBrightnessVal">100%</span></div>
+        <track-slider id="sgColorBrightness" min="0" max="100" value="100"></track-slider>
+      </div>
+      <input type="hidden" id="sgColorValue" value="#ffffff">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSgColorEditor()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSgColorEditor()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="scenePresetModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Scene Preset</h2>
+      <button class="modal-close" onclick="closeScenePresetEditor()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Scene</label>
+      <select id="scenePresetSelect" class="modal-input modal-select"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeScenePresetEditor()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveScenePreset()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function colourPresetList() {
+    return typeof currentState !== 'undefined' ? currentState?.colourPresetList || [] : [];
+  }
+
+  function setColourPresetHighlight(index, highlighted) {
+    const item = document.querySelector(`#colourPresetRow .swatch-item[data-preset-index="${index}"]`);
+    if (item) item.classList.toggle('preset-highlight', highlighted);
+  }
+
+  function bindPresetMarkerHover(marker, index) {
+    marker.dataset.presetIndex = index;
+    marker.addEventListener('mouseenter', () => setColourPresetHighlight(index, true));
+    marker.addEventListener('mouseleave', () => setColourPresetHighlight(index, false));
+  }
+
+  function activeColourMode() {
+    return document.querySelector('#modeSeg button.active')?.dataset.m || 'white';
+  }
+
+  function setSegmentValue(container, dataKey, value) {
+    const root = typeof container === 'string' ? document.getElementById(container) : container;
+    if (!root) return null;
+    let activeBtn = null;
+    root.querySelectorAll('button').forEach(btn => {
+      const isActive = btn.dataset[dataKey] === String(value);
+      btn.classList.toggle('active', isActive);
+      if (isActive) activeBtn = btn;
+    });
+    return activeBtn;
+  }
+
+  function bindSegmentValue(container, dataKey, onChange, options = {}) {
+    const root = typeof container === 'string' ? document.getElementById(container) : container;
+    if (!root) return;
+    root.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn || !root.contains(btn) || !(dataKey in btn.dataset)) return;
+      if (options.ignoreRepeat && btn.classList.contains('active')) return;
+      const value = btn.dataset[dataKey];
+      setSegmentValue(root, dataKey, value);
+      onChange?.(value, btn, e);
+    });
+  }
+
+  const PRESET_MARKER_DRAG_PX = 10;
+
+  function cctFromSliderPointer(clientX) {
+    const slider = document.getElementById('cctSlider');
+    const rect = slider.getBoundingClientRect();
+    const min = parseFloat(slider.getAttribute('min')) || 2700;
+    const max = parseFloat(slider.getAttribute('max')) || 6500;
+    const step = parseFloat(slider.getAttribute('step')) || 100;
+    const start = rect.left + 11;
+    const end = rect.right - 13;
+    const p = end > start ? Math.max(0, Math.min(1, (clientX - start) / (end - start))) : 0;
+    const raw = min + p * (max - min);
+    return Math.max(min, Math.min(max, Math.round((raw - min) / step) * step + min));
+  }
+
+  function setCctControlValue(kelvin) {
+    const slider = document.getElementById('cctSlider');
+    slider.value = kelvin;
+    document.getElementById('cctSliderVal').textContent = `${kelvin}K`;
+  }
+
+  function bindCctPresetMarkerDrag(marker, index) {
+    marker.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      marker.setPointerCapture(e.pointerId);
+      const startX = e.clientX;
+      const startY = e.clientY;
+      let dragged = false;
+      const move = clientX => {
+        const kelvin = cctFromSliderPointer(clientX);
+        const rect = document.getElementById('cctSlider').getBoundingClientRect();
+        const min = parseFloat(document.getElementById('cctSlider').getAttribute('min')) || 2700;
+        const max = parseFloat(document.getElementById('cctSlider').getAttribute('max')) || 6500;
+        const p = Math.max(0, Math.min(1, (kelvin - min) / (max - min)));
+        marker.style.left = `${11 + p * Math.max(0, rect.width - 24)}px`;
+        marker.title = `${kelvin} K`;
+        setCctControlValue(kelvin);
+        return kelvin;
+      };
+      const onMove = ev => {
+        if (!dragged && Math.hypot(ev.clientX - startX, ev.clientY - startY) < PRESET_MARKER_DRAG_PX) return;
+        dragged = true;
+        move(ev.clientX);
+      };
+      const onUp = ev => {
+        marker.releasePointerCapture(ev.pointerId);
+        marker.removeEventListener('pointermove', onMove);
+        marker.removeEventListener('pointerup', onUp);
+        marker.removeEventListener('pointercancel', onCancel);
+        if (!dragged) {
+          window.openColourPresetEditor?.(index);
+          return;
+        }
+        const kelvin = move(ev.clientX);
+        const preset = colourPresetList()[index];
+        if (preset?.type === 0x01 && ((preset.b1 << 8) | preset.b2) === kelvin) return;
+        window.updateColourPresetSlot?.(index, { type: 0x01, b1: (kelvin >> 8) & 0xff, b2: kelvin & 0xff, b3: 0x00 });
+      };
+      const onCancel = ev => {
+        marker.releasePointerCapture(ev.pointerId);
+        marker.removeEventListener('pointermove', onMove);
+        marker.removeEventListener('pointerup', onUp);
+        marker.removeEventListener('pointercancel', onCancel);
+        if (dragged) renderCctPresetSliderMarkers(colourPresetList());
+      };
+      marker.addEventListener('pointermove', onMove);
+      marker.addEventListener('pointerup', onUp);
+      marker.addEventListener('pointercancel', onCancel);
+    });
+  }
+
+  function renderCctPresetSliderMarkers(presets = []) {
+    const slider = document.getElementById('cctSlider');
+    const container = document.getElementById('cctPresetMarkers');
+    if (!slider || !container) return;
+    container.innerHTML = '';
+    if (!window.isColourPresetEditMode?.()) return;
+    const rect = slider.getBoundingClientRect();
+    if (!rect.width) return;
+    const min = parseFloat(slider.getAttribute('min')) || 2700;
+    const max = parseFloat(slider.getAttribute('max')) || 6500;
+    presets.forEach((c, index) => {
+      if (!c || c.type !== 0x01) return;
+      const kelvin = (c.b1 << 8) | c.b2;
+      const p = Math.max(0, Math.min(1, (kelvin - min) / (max - min)));
+      const marker = document.createElement('span');
+      marker.className = 'warmth-preset-marker';
+      marker.style.left = `${11 + p * Math.max(0, rect.width - 24)}px`;
+      marker.title = `${kelvin} K`;
+      bindPresetMarkerHover(marker, index);
+      bindCctPresetMarkerDrag(marker, index);
+      container.appendChild(marker);
+    });
+  }
+
+  // Tab switching
+  const bulbWrap = document.getElementById('bulbCardWrap');
+  const mobileDeviceHeader = window.matchMedia('(max-width:840px)');
+
+  function setBulbCardCollapsed(collapse) {
+    if (!mobileDeviceHeader.matches) {
+      bulbWrap.classList.remove('collapsed');
+      bulbWrap.style.maxHeight = '';
+      return;
+    }
+    if (collapse) {
+      bulbWrap.style.maxHeight = bulbWrap.scrollHeight + 'px';
+      bulbWrap.getBoundingClientRect(); // force reflow
+      bulbWrap.classList.add('collapsed');
+    } else {
+      bulbWrap.classList.remove('collapsed');
+      bulbWrap.style.maxHeight = bulbWrap.scrollHeight + 'px';
+    }
+  }
+
+  function syncBulbCardCollapsed() {
+    setBulbCardCollapsed(document.getElementById('pMatrix')?.classList.contains('active'));
+  }
+
+  syncBulbCardCollapsed();
+  mobileDeviceHeader.addEventListener('change', syncBulbCardCollapsed);
+
+  document.getElementById('mainTabs').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-pane]');
+    if (!btn) return;
+    document.querySelectorAll('#mainTabs button').forEach(b => {
+      const active = b === btn;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === btn.dataset.pane));
+    syncBulbCardCollapsed();
+    document.querySelector('.work-body').scrollTop = 0;
+    if (btn.dataset.pane === 'pColour') requestAnimationFrame(() => {
+      window.syncColourWheel?.();
+      window.renderColourPresetWheelMarkers?.(colourPresetList());
+      renderCctPresetSliderMarkers(colourPresetList());
+    });
+  });
+
+  // White / colour mode switch
+  bindSegmentValue('modeSeg', 'm', mode => {
+    document.querySelectorAll('.modepane').forEach(p => p.classList.toggle('active', p.dataset.m === mode));
+    if (mode === 'color') requestAnimationFrame(() => {
+      window.syncColourWheel?.();
+      window.renderColourPresetWheelMarkers?.(colourPresetList());
+    });
+    if (mode === 'white') requestAnimationFrame(() => {
+      renderCctPresetSliderMarkers(colourPresetList());
+    });
+  });
+
+  // Colour wheel
+  (function() {
+    const wheel  = document.getElementById('colWheel');
+    const handle = document.getElementById('colHandle');
+    const wctx   = wheel.getContext('2d');
+    const W = wheel.width, R = W / 2;
+
+    function hsv2rgb(h, s, v) {
+      const c = v*s, x = c*(1-Math.abs((h/60)%2-1)), m = v-c;
+      let r,g,b;
+      if      (h<60)  [r,g,b]=[c,x,0];
+      else if (h<120) [r,g,b]=[x,c,0];
+      else if (h<180) [r,g,b]=[0,c,x];
+      else if (h<240) [r,g,b]=[0,x,c];
+      else if (h<300) [r,g,b]=[x,0,c];
+      else            [r,g,b]=[c,0,x];
+      return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
+    }
+    function rgb2hsv(r, g, b) {
+      r/=255; g/=255; b/=255;
+      const mx=Math.max(r,g,b), mn=Math.min(r,g,b), df=mx-mn;
+      let h=0;
+      if (df) {
+        if      (mx===r) h=((g-b)/df)%6;
+        else if (mx===g) h=(b-r)/df+2;
+        else             h=(r-g)/df+4;
+        h*=60; if(h<0) h+=360;
+      }
+      return [h, mx?df/mx:0, mx];
+    }
+    function drawWheel() {
+      const img=wctx.createImageData(W,W), d=img.data;
+      for (let y=0;y<W;y++) for (let x=0;x<W;x++) {
+        const dx=x-R, dy=y-R, dist=Math.sqrt(dx*dx+dy*dy);
+        const i=(y*W+x)*4;
+        if (dist>R) { d[i+3]=0; continue; }
+        const hue=(Math.atan2(dy,dx)*180/Math.PI+360)%360, sat=Math.min(dist/R,1);
+        const [r,g,b]=hsv2rgb(hue,sat,1);
+        d[i]=r; d[i+1]=g; d[i+2]=b;
+        d[i+3]=dist>R-1.5 ? Math.round(255*(R-dist+1.5)) : 255;
+      }
+      wctx.putImageData(img,0,0);
+    }
+    function placeHandle(h, s) {
+      const rect=wheel.getBoundingClientRect();
+      if (!rect.width) return;
+      const rad=s*R, ang=h*Math.PI/180;
+      const sc=rect.width/W;
+      handle.style.left=(R+rad*Math.cos(ang))*sc+'px';
+      handle.style.top =(R+rad*Math.sin(ang))*sc+'px';
+    }
+    function applyHex(hex) {
+      handle.style.background=hex;
+      document.getElementById('colSwatch').style.background=hex;
+      document.getElementById('colorPicker').value=hex;
+      document.getElementById('colorHex').textContent=hex.toUpperCase();
+      const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+      document.getElementById('colorRgb').textContent=`${r}, ${g}, ${b}`;
+    }
+    function wheelSelectionFromPointer(clientX, clientY) {
+      const rect=wheel.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+      const x=(clientX-rect.left)/rect.width*W-R, y=(clientY-rect.top)/rect.height*W-R;
+      const dist=Math.sqrt(x*x+y*y), ang=Math.atan2(y,x);
+      const hue=(ang*180/Math.PI+360)%360, sat=Math.min(dist/R,1);
+      const [r,g,b]=hsv2rgb(hue,sat,1);
+      const hex='#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+      const sc=rect.width/W, rad=Math.min(dist,R);
+      return { rect, ang, rad, sc, r, g, b, hex };
+    }
+    function pickAt(clientX, clientY, release) {
+      const pick=wheelSelectionFromPointer(clientX, clientY);
+      if (!pick) return;
+      handle.style.left=(R+pick.rad*Math.cos(pick.ang))*pick.sc+'px';
+      handle.style.top =(R+pick.rad*Math.sin(pick.ang))*pick.sc+'px';
+      applyHex(pick.hex);
+      document.getElementById('colorPicker').dispatchEvent(
+        new Event(release?'change':'input', {bubbles:true})
+      );
+    }
+    let dragging=false;
+    wheel.addEventListener('pointerdown', e=>{
+      dragging=true;
+      try { wheel.setPointerCapture(e.pointerId); } catch(_){}
+      pickAt(e.clientX,e.clientY,false);
+    });
+    wheel.addEventListener('pointermove', e=>{ if(dragging) pickAt(e.clientX,e.clientY,false); });
+    wheel.addEventListener('pointerup',   e=>{ if(dragging){ pickAt(e.clientX,e.clientY,true); dragging=false; } });
+    wheel.addEventListener('pointercancel', ()=>{ dragging=false; });
+
+    function syncColourWheel() {
+      const cp=document.getElementById('colorPicker');
+      const hex=cp.value||'#ffffff';
+      const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+      const [h,s]=rgb2hsv(r,g,b);
+      placeHandle(h,s);
+      applyHex(hex);
+    }
+    function renderColourPresetWheelMarkers(presets = []) {
+      const container = document.getElementById('colPresetMarkers');
+      if (!container) return;
+      container.innerHTML = '';
+      if (!window.isColourPresetEditMode?.()) return;
+      const rect = wheel.getBoundingClientRect();
+      if (!rect.width) return;
+      presets.forEach((c, index) => {
+        if (!c || c.type === 0x01) return;
+        const [h, s] = rgb2hsv(c.b1 || 0, c.b2 || 0, c.b3 || 0);
+        const rad = s * rect.width / 2;
+        const ang = h * Math.PI / 180;
+        const marker = document.createElement('span');
+        marker.className = 'wheel-preset-marker';
+        marker.style.left = `${rect.width / 2 + rad * Math.cos(ang)}px`;
+        marker.style.top = `${rect.width / 2 + rad * Math.sin(ang)}px`;
+        const hex = [c.b1 || 0, c.b2 || 0, c.b3 || 0].map(v => v.toString(16).padStart(2, '0')).join('');
+        marker.title = `#${hex}`;
+        bindPresetMarkerHover(marker, index);
+        marker.addEventListener('pointerdown', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          marker.setPointerCapture(e.pointerId);
+          const startX = e.clientX;
+          const startY = e.clientY;
+          let dragged = false;
+          const move = (clientX, clientY) => {
+            const pick = wheelSelectionFromPointer(clientX, clientY);
+            if (!pick) return null;
+            const x = R + pick.rad * Math.cos(pick.ang);
+            const y = R + pick.rad * Math.sin(pick.ang);
+            marker.style.left = `${x * pick.sc}px`;
+            marker.style.top = `${y * pick.sc}px`;
+            marker.title = pick.hex.toUpperCase();
+            handle.style.left = `${x * pick.sc}px`;
+            handle.style.top = `${y * pick.sc}px`;
+            applyHex(pick.hex);
+            return pick;
+          };
+          const onMove = ev => {
+            if (!dragged && Math.hypot(ev.clientX - startX, ev.clientY - startY) < PRESET_MARKER_DRAG_PX) return;
+            dragged = true;
+            move(ev.clientX, ev.clientY);
+          };
+          const onUp = ev => {
+            marker.releasePointerCapture(ev.pointerId);
+            marker.removeEventListener('pointermove', onMove);
+            marker.removeEventListener('pointerup', onUp);
+            marker.removeEventListener('pointercancel', onCancel);
+            if (!dragged) {
+              window.openColourPresetEditor?.(index);
+              return;
+            }
+            const pick = move(ev.clientX, ev.clientY);
+            const preset = colourPresetList()[index];
+            if (preset?.type !== 0x01 && preset?.b1 === pick?.r && preset?.b2 === pick?.g && preset?.b3 === pick?.b) return;
+            if (pick) window.updateColourPresetSlot?.(index, { type: 0x00, b1: pick.r, b2: pick.g, b3: pick.b });
+          };
+          const onCancel = ev => {
+            marker.releasePointerCapture(ev.pointerId);
+            marker.removeEventListener('pointermove', onMove);
+            marker.removeEventListener('pointerup', onUp);
+            marker.removeEventListener('pointercancel', onCancel);
+            if (dragged) renderColourPresetWheelMarkers(colourPresetList());
+          };
+          marker.addEventListener('pointermove', onMove);
+          marker.addEventListener('pointerup', onUp);
+          marker.addEventListener('pointercancel', onCancel);
+        });
+        container.appendChild(marker);
+      });
+    }
+
+    drawWheel();
+    window.syncColourWheel = syncColourWheel;
+    window.renderColourPresetWheelMarkers = renderColourPresetWheelMarkers;
+    window.renderCctPresetSliderMarkers = renderCctPresetSliderMarkers;
+    window.addEventListener('resize', () => requestAnimationFrame(() => {
+      syncColourWheel();
+      renderColourPresetWheelMarkers(colourPresetList());
+      renderCctPresetSliderMarkers(colourPresetList());
+    }));
+    requestAnimationFrame(syncColourWheel);
+  })();
+
+  // Settings popover
+  function openSettings() {
+    const popover = document.getElementById('settingsOverlay');
+    const button = document.getElementById('settingsBtn');
+    if (!popover.classList.contains('hidden')) {
+      closeSettings();
+      return;
+    }
+    const rect = button.getBoundingClientRect();
+    popover.classList.remove('hidden');
+    const gap = 8;
+    const width = popover.offsetWidth;
+    const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width));
+    popover.style.left = `${left}px`;
+    popover.style.top = `${rect.bottom + gap}px`;
+    button.classList.add('active');
+  }
+  function closeSettings() {
+    document.getElementById('settingsOverlay').classList.add('hidden');
+    document.getElementById('settingsBtn').classList.remove('active');
+  }
+  function closeSettingsOnOuter(e) {
+    const popover = document.getElementById('settingsOverlay');
+    const button = document.getElementById('settingsBtn');
+    if (!popover.classList.contains('hidden') && !popover.contains(e.target) && !button.contains(e.target)) {
+      closeSettings();
+    }
+  }
+  document.addEventListener('click', closeSettingsOnOuter);
+  window.addEventListener('resize', closeSettings);
+  window.addEventListener('scroll', closeSettings, true);
+  function openBedtimeFromSettings() { closeSettings(); openBedtime(); }
+  function openWifiFromSettings()    { closeSettings(); openSetup(); }
+  function openFwFromSettings()      { closeSettings(); openFw(); }
+  function openLogFromSettings() {
+    closeSettings();
+    document.querySelectorAll('#mainTabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pLog'));
+    document.querySelector('.work-body').scrollTop = 0;
+  }
+
+  document.getElementById('bedtimeSensitivity').addEventListener('input', function() {
+    document.getElementById('bedtimeSensVal').textContent = this.value;
+  });
+  document.getElementById('bedtimeBrightness').addEventListener('input', function() {
+    document.getElementById('bedtimeBriVal').textContent = this.value;
+  });
+
+</script>
+
+<div id="a11yLive" aria-live="polite" aria-atomic="true" class="hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap"></div>
+
+<script src="js/govee-color-utils.js"></script>
+<script src="js/govee-slider.js"></script>
+<script src="js/govee-crypto.js"></script>
+<script src="js/govee-ble.js"></script>
+<script src="js/govee-state.js"></script>
+<script src="js/govee-bedtime.js"></script>
+<script src="js/govee-scenes.js"></script>
+<script src="js/govee-music.js"></script>
+<script src="js/govee-controls.js"></script>
+<script src="js/govee-presets.js"></script>
+<script src="js/govee-simple-scene.js"></script>
+<script src="js/govee-matrix.js"></script>
+</body>
+</html>
