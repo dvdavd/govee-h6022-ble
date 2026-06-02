@@ -579,7 +579,29 @@ function renderPresets(s) {
 
 }
 
-function openFw()  { openModal('fwOverlay'); }
+function openFw() {
+  const paired = bleDevice ? findPairedDevice(bleDevice) : null;
+  const fwPairedEl = document.getElementById('fwPaired');
+  const forgetBtn  = document.getElementById('forgetPairBtn');
+  if (paired) {
+    const d = new Date(paired.pairedAt);
+    fwPairedEl.textContent = `Yes · ${d.toLocaleDateString()}`;
+    forgetBtn.disabled = false;
+  } else {
+    fwPairedEl.textContent = 'No';
+    forgetBtn.disabled = true;
+  }
+  openModal('fwOverlay');
+}
+
+function forgetPairing() {
+  if (!bleDevice) return;
+  forgetPairedDevice(bleDevice);
+  document.getElementById('fwPaired').textContent = 'No';
+  document.getElementById('forgetPairBtn').disabled = true;
+  log('info', `Pairing forgotten for ${bleDevice.name}`);
+}
+
 function closeFw() { closeModal('fwOverlay'); }
 function closeFwOnOuter(e) { if (e.target === document.getElementById('fwOverlay')) closeFw(); }
 

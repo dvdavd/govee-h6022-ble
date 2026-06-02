@@ -150,6 +150,146 @@ function runBleTransaction(label, fn) {
   return bleQueue;
 }
 
+// ── Pairing (button-press confirmation) ──────────────────────────────────────
+
+const PAIRED_KEY = 'govee-paired';
+
+function loadPairedDevices() {
+  try { return JSON.parse(localStorage.getItem(PAIRED_KEY)) || {}; } catch { return {}; }
+}
+
+function pairedDeviceKeys(device) {
+  const keys = [];
+  if (device?.id) keys.push(`id:${device.id}`);
+  if (device?.name) keys.push(`name:${device.name.trim().toLowerCase()}`);
+  return keys;
+}
+
+function findPairedDevice(device) {
+  const all = loadPairedDevices();
+  for (const key of pairedDeviceKeys(device)) {
+    if (all[key]) return all[key];
+  }
+
+  // Compatibility with older saves that used the raw Web Bluetooth device id.
+  if (device?.id && all[device.id]) return all[device.id];
+
+  // Some browsers mint a new opaque id after a new browser session. The
+  // advertised BLE name is the most stable browser-visible identity we have.
+  if (device?.name) {
+    const name = device.name.trim().toLowerCase();
+    for (const entry of Object.values(all)) {
+      if (entry?.name?.trim().toLowerCase() === name) return entry;
+    }
+  }
+
+  return null;
+}
+
+function savePairedDevice(device, entry) {
+  const all = loadPairedDevices();
+  for (const key of pairedDeviceKeys(device)) all[key] = entry;
+  localStorage.setItem(PAIRED_KEY, JSON.stringify(all));
+}
+
+function forgetPairedDevice(device) {
+  const all = loadPairedDevices();
+  for (const key of pairedDeviceKeys(device)) delete all[key];
+  if (device?.id) delete all[device.id];
+  if (device?.name) {
+    const name = device.name.trim().toLowerCase();
+    for (const [key, entry] of Object.entries(all)) {
+      if (entry?.name?.trim().toLowerCase() === name) delete all[key];
+    }
+  }
+  localStorage.setItem(PAIRED_KEY, JSON.stringify(all));
+}
+
+function isPaired(device) {
+  return !!findPairedDevice(device);
+}
+
+function openPairModal() {
+  document.getElementById('pairStatus').textContent = '';
+  document.getElementById('pairStatus').className = 'modal-status';
+  document.getElementById('pairCancelBtn').disabled = false;
+  document.getElementById('pairOverlay').classList.remove('hidden');
+}
+
+function closePairModal() {
+  document.getElementById('pairOverlay').classList.add('hidden');
+}
+
+function setPairStatus(text, cls = '') {
+  const el = document.getElementById('pairStatus');
+  el.textContent = text;
+  el.className = 'modal-status' + (cls ? ' ' + cls : '');
+}
+
+// Polls aa b1 until button pressed, acks with 33 b2, saves token.
+// Rejects if cancelled or timed out.
+async function requireButtonConfirmation(device) {
+  if (isPaired(device)) {
+    log('info', `Device already paired (${device.name})`);
+    return;
+  }
+
+  return new Promise((resolve, reject) => {
+    let cancelled = false;
+    let done = false;
+    const finish = (err) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timeoutHandle);
+      closePairModal();
+      document.getElementById('pairCancelBtn').onclick = null;
+      if (err) reject(err); else resolve();
+    };
+
+    const timeoutHandle = setTimeout(() => {
+      finish(new Error('Pairing timed out: button not pressed within 5 minutes'));
+    }, 5 * 60 * 1000);
+
+    document.getElementById('pairCancelBtn').onclick = () => {
+      cancelled = true;
+      finish(new Error('Pairing cancelled'));
+    };
+
+    openPairModal();
+
+    (async () => {
+      while (!done && !cancelled) {
+        try {
+          const resp = await requestPacket([0xaa, 0xb1], d => d[0] === 0xaa && d[1] === 0xb1, 2000);
+          if (resp[2] === 0x01) {
+            // Button pressed — token is bytes 3–10
+            const token = Array.from(resp.slice(3, 11));
+            log('info', `Button confirmed, token: ${hex(new Uint8Array(token))}`);
+            setPairStatus('Button pressed - pairing complete');
+            // Ack with 33 b2 + token
+            await send(makePacket([0x33, 0xb2, ...token]));
+            await recvMatch(d => d[0] === 0x33 && d[1] === 0xb2, 3000);
+            // Persist
+            savePairedDevice(device, {
+              name: device.name,
+              token: hex(new Uint8Array(token)),
+              pairedAt: Date.now(),
+            });
+            log('info', 'Pairing complete');
+            finish(null);
+            return;
+          }
+          // resp[2] === 0x00: not yet pressed, loop
+        } catch (e) {
+          if (done || cancelled) return;
+          // timeout on this poll cycle is fine, just retry
+        }
+        await new Promise(r => setTimeout(r, 250));
+      }
+    })();
+  });
+}
+
 async function keyExchange() {
   log('info', 'Key exchange…');
   const pkt1 = await keyExPkt(0x01, STATIC_KEY);
@@ -244,6 +384,9 @@ async function connectToDevice(device) {
   log('info', 'GATT ready');
 
   await keyExchange();
+
+  setStatus('connecting', 'Waiting for button confirmation…');
+  await requireButtonConfirmation(device);
 
   setStatus('connecting', 'Querying state…');
   currentState = await runBleTransaction('Initial state', queryState);

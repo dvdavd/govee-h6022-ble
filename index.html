@@ -888,6 +888,23 @@
   </div>
 </main>
 
+<!-- pairing confirmation modal -->
+<div class="modal-overlay hidden" id="pairOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Pair New Device</h2>
+    </div>
+    <div class="modal-body" style="text-align:center;padding-top:20px">
+      <div style="margin-bottom:16px;color:var(--accent)"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 6a7.75 7.75 0 1 0 10 0"/><path d="M12 4l0 8"/></svg></div>
+      <p style="font-size:.9rem;line-height:1.5;margin-bottom:12px">Tap the power button on your <strong>Govee Smart Table Lamp 2</strong> to complete pairing.</p>
+      <div class="modal-status" id="pairStatus"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="pairCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- modals -->
 <div class="settings-popover hidden" id="settingsOverlay">
       <button class="settings-modal-row" id="settingsBedtimeBtn" onclick="openBedtimeFromSettings()">
@@ -942,9 +959,11 @@
         <div class="fw-item"><div class="fw-label">BLE fw (aa 21)</div><div class="fw-val" id="fw21">—</div></div>
         <div class="fw-item"><div class="fw-label">Device ID</div><div class="fw-val" id="devId">—</div></div>
         <div class="fw-item"><div class="fw-label">Preset slots</div><div class="fw-val" id="presetCounts">—</div></div>
+        <div class="fw-item"><div class="fw-label">Paired</div><div class="fw-val" id="fwPaired">—</div></div>
       </div>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-danger" id="forgetPairBtn" onclick="forgetPairing()" style="margin-right:auto">Forget pairing</button>
       <button class="btn btn-ghost" onclick="closeFw()">Close</button>
     </div>
   </div>
