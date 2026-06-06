@@ -520,6 +520,10 @@ function renderScenePresetGrid(s) {
   const container = document.getElementById('scenePresetRow');
   if (!s?.scenePresetList) return;
 
+  const presetKey = s.scenePresetList.join(',');
+  if (container.dataset.presetCodes === presetKey) return;
+  container.dataset.presetCodes = presetKey;
+
   container.innerHTML = '';
 
   if (!s.scenePresetList.length) {
