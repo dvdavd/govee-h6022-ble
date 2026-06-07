@@ -4,7 +4,8 @@
 
 function simpleScenePackets(typeByte, subtypeByte, speed, colors) {
   const colorBytes = [];
-  for (const [r, g, b] of colors) {
+  for (let [r, g, b] of colors) {
+    [r, g, b] = applyCalibration(r, g, b, 'customSimpleScenes');
     colorBytes.push(r & 0xff, g & 0xff, b & 0xff);
   }
 

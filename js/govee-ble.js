@@ -391,6 +391,7 @@ async function connectToDevice(device) {
   setStatus('connecting', 'Querying state…');
   currentState = await runBleTransaction('Initial state', queryState);
   updateUI(currentState);
+  window.syncColourPaneMode?.();
 
   document.getElementById('toggleBtn').disabled = false;
   document.getElementById('toggleBtnBrand').disabled = false;

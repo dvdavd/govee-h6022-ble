@@ -6,12 +6,13 @@ A lightweight dashboard for controlling a Govee Smart Table Lamp 2 (H6022) over 
 
 ## Features
 
-- Connect to nearby Govee BLE H6022 lamps from the browser.
-- Adjust power, brightness, colour temperature, and colour.
+- Connect to nearby Govee BLE H6022 lamps from the browser
+- Adjust power, brightness, colour temperature, and colour
 - Change scenes, customise palettes and edit animated multi-layer scenes
 - Music effects with device microphone and browser microphone support
 - Assign and rearrange scene and colour presets (on-device buttons)
 - Configure wifi and bedtime switch settings
+- Optional colour correction to improve colour accuracy
 - Mobile friendly layout
 
 ## Screenshots

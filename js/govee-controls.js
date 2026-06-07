@@ -33,6 +33,7 @@ function kelvinToRgb(kelvin) {
 }
 
 async function setColour(r, g, b) {
+  [r, g, b] = applyCalibration(r, g, b, 'solidColours');
   await send(makePacket([0x33, 0x05, 0x0d, r, g, b, 0x00, 0x00, 0x00, 0x00, 0x00]));
 }
 

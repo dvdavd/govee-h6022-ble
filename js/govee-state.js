@@ -44,7 +44,10 @@ const MUSIC_NAMES = {
 
 let currentCustomColor = null;
 let sceneHoldUntil = 0;
+let colorHoldUntil = 0;
+let heldCustomColor = null;
 let activeScenePreview = null;
+const DISPLAY_RGB_KEY = 'govee-display-rgb-source';
 
 function rgbToDisplayHex(r, g, b) {
   return '#' + [r, g, b]
@@ -110,6 +113,80 @@ function sceneDisplayName(sceneCode) {
 function rememberActiveScene(key, sceneCode, label, gradient = null) {
   if (typeof activeSceneKey !== 'undefined') activeSceneKey = key;
   activeScenePreview = { key, sceneCode, label, gradient };
+}
+
+function rgbObject(r, g, b) {
+  return {
+    r: Math.max(0, Math.min(255, Math.round(Number(r) || 0))),
+    g: Math.max(0, Math.min(255, Math.round(Number(g) || 0))),
+    b: Math.max(0, Math.min(255, Math.round(Number(b) || 0))),
+  };
+}
+
+function sameRgb(a, b) {
+  return !!a && !!b && a.r === b.r && a.g === b.g && a.b === b.b;
+}
+
+function loadStoredDisplayRgb() {
+  try {
+    const data = JSON.parse(localStorage.getItem(DISPLAY_RGB_KEY) || 'null');
+    if (!data?.source || !data?.sent) return null;
+    return {
+      source: rgbObject(data.source.r, data.source.g, data.source.b),
+      sent: rgbObject(data.sent.r, data.sent.g, data.sent.b),
+      savedAt: Number(data.savedAt) || 0,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearStoredDisplayRgb() {
+  localStorage.removeItem(DISPLAY_RGB_KEY);
+}
+
+function storeDisplayRgb(r, g, b) {
+  const source = rgbObject(r, g, b);
+  const [sr, sg, sb] = applyCalibration(source.r, source.g, source.b, 'solidColours');
+  localStorage.setItem(DISPLAY_RGB_KEY, JSON.stringify({
+    source,
+    sent: rgbObject(sr, sg, sb),
+    savedAt: Date.now(),
+  }));
+}
+
+function rememberChosenRgb(r, g, b) {
+  const source = rgbObject(r, g, b);
+  heldCustomColor = { type: 'rgb', ...source };
+  colorHoldUntil = Date.now() + 15000;
+  storeDisplayRgb(source.r, source.g, source.b);
+}
+
+function displayRgbPatch(r, g, b) {
+  currentCustomColor = { type: 'rgb', r, g, b };
+  return {
+    musicMode: false,
+    sceneCode: 0,
+    colorHex: rgbToDisplayHex(r, g, b),
+    modeDisplay: { kind: 'rgb', label: rgbToDisplayHex(r, g, b) },
+  };
+}
+
+function chosenRgbPatch(readback) {
+  if (Date.now() < colorHoldUntil && heldCustomColor?.type === 'rgb') {
+    return displayRgbPatch(heldCustomColor.r, heldCustomColor.g, heldCustomColor.b);
+  }
+
+  const stored = loadStoredDisplayRgb();
+  if (!stored) return null;
+  const device = rgbObject(readback.r, readback.g, readback.b);
+  const currentCorrected = rgbObject(...applyCalibration(stored.source.r, stored.source.g, stored.source.b, 'solidColours'));
+  if (sameRgb(device, stored.sent) || sameRgb(device, currentCorrected)) {
+    return displayRgbPatch(stored.source.r, stored.source.g, stored.source.b);
+  }
+
+  clearStoredDisplayRgb();
+  return null;
 }
 
 async function queryPresets(colourCount, sceneCount) {
@@ -183,10 +260,20 @@ function mergeState(base, patch) {
 function assumeLightOn(patch) {
   if (patch?.musicMode === false && patch?.sceneCode > 0) {
     sceneHoldUntil = Date.now() + 15000;
+    colorHoldUntil = 0;
+    heldCustomColor = null;
+    clearStoredDisplayRgb();
   } else if (patch?.sceneCode === 0 || patch?.musicMode === true) {
     sceneHoldUntil = 0;
     activeScenePreview = null;
     if (typeof activeSceneKey !== 'undefined') activeSceneKey = null;
+  }
+  if (patch?.modeDisplay?.kind === 'rgb' && currentCustomColor?.type === 'rgb') {
+    rememberChosenRgb(currentCustomColor.r, currentCustomColor.g, currentCustomColor.b);
+  } else if (patch?.modeDisplay?.kind === 'cct' || patch?.musicMode === true) {
+    colorHoldUntil = 0;
+    heldCustomColor = null;
+    clearStoredDisplayRgb();
   }
   currentState = mergeState(currentState, { on: true, ...(patch || {}) });
   updateUI(currentState);
@@ -205,22 +292,36 @@ function parseModeState(r) {
     const mode = r[2];
     if (mode === 0x13) {
       const label = MUSIC_NAMES[r[3]] || `Preset ${r[3]}`;
+      colorHoldUntil = 0;
+      heldCustomColor = null;
+      clearStoredDisplayRgb();
       return { musicMode: true, sceneCode: null, musicPreset: r[3], musicSensitivity: r[4], modeDisplay: { kind: 'music', label } };
     }
     if (mode === 0x0d) {
       if (r[3] === 0x01) {
+        colorHoldUntil = 0;
+        heldCustomColor = null;
+        clearStoredDisplayRgb();
         return { musicMode: true, sceneCode: null, musicPreset: null, modeDisplay: { kind: 'music', label: 'Browser Mic' } };
       }
       const kelvin = parseModeKelvin(r);
       if (kelvin) {
+        colorHoldUntil = 0;
+        heldCustomColor = null;
+        clearStoredDisplayRgb();
         currentCustomColor = { type: 'cct', kelvin };
         return { musicMode: false, sceneCode: 0, cctKelvin: kelvin, modeDisplay: { kind: 'cct', label: `${kelvin}K` } };
       }
       const [rVal, gVal, bVal] = [r[3], r[4], r[5]];
+      const chosen = chosenRgbPatch({ r: rVal, g: gVal, b: bVal });
+      if (chosen) return chosen;
       currentCustomColor = { type: 'rgb', r: rVal, g: gVal, b: bVal };
       return { musicMode: false, sceneCode: 0, colorHex: rgbToDisplayHex(rVal, gVal, bVal), modeDisplay: { kind: 'rgb', label: rgbToDisplayHex(rVal, gVal, bVal) } };
     }
     const sceneCode = mode === 0x04 ? (r[3] | (r[4] << 8)) : (mode | (r[3] << 8));
+    colorHoldUntil = 0;
+    heldCustomColor = null;
+    clearStoredDisplayRgb();
     return { musicMode: false, sceneCode };
   }
   return {};
@@ -326,6 +427,14 @@ function updateUI(s) {
     const el = document.getElementById('brightnessSlider');
     el.value = s.brightness;
     document.getElementById('brightnessSliderVal').textContent = s.brightness;
+  }
+
+  if (s.modeDisplay?.kind === 'rgb' && s.colorHex) {
+    const picker = document.getElementById('colorPicker');
+    if (picker && picker.value.toUpperCase() !== s.colorHex.toUpperCase()) {
+      picker.value = s.colorHex;
+      window.syncColourWheel?.();
+    }
   }
 
   if (s.fwWifi)   document.getElementById('fwWifi').textContent = s.fwWifi;

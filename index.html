@@ -468,6 +468,20 @@
   .bedtime-toggle{display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer}
   .bedtime-toggle input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent);cursor:pointer}
   .bedtime-toggle span{font-size:.9rem}
+  .calibration-modal{width:460px}
+  .modal-toggle-list{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--panel2)}
+  .modal-toggle-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;border:none;border-bottom:1px solid var(--border);background:none;color:var(--ink);font-family:var(--body);text-align:left;cursor:pointer}
+  .modal-toggle-row:hover{background:rgba(255,255,255,.025)}
+  .modal-toggle-row:last-child{border-bottom:none}
+  .modal-toggle-row span:first-child{font-size:.84rem;font-weight:600;color:var(--ink)}
+  .modal-toggle-row small{display:block;margin-top:2px;color:var(--muted);font-size:.72rem;font-weight:400;line-height:1.35}
+  .modal-toggle-row .pwr{pointer-events:none}
+  .calibration-modal .modal-toggle-list{border:none;border-radius:0;overflow:visible;background:transparent}
+  .calibration-modal .modal-toggle-row{padding:10px 0;border-bottom:none}
+  .calibration-modal .modal-toggle-row:hover{background:transparent}
+  .calibration-modal .modal-field + .modal-field{margin-top:14px}
+  .modal-section-title{margin:16px 0 9px;font-family:var(--disp);font-size:.75rem;font-weight:700;color:var(--muted)}
+  .calibration-readout{font-family:var(--mono);font-size:.75rem;color:var(--ink)}
   input[type=time]{color-scheme:dark}
 
   /* fw grid */
@@ -922,11 +936,67 @@
         <span class="row-text">Firmware &amp; Identity<span class="row-label">BLE/MCU versions and device ID</span></span>
         <span class="row-chev">›</span>
       </button>
+      <button class="settings-modal-row" id="calToggleRow" onclick="openCalibrationFromSettings()">
+        <span class="row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25"/><path d="M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/></svg></span>
+        <span class="row-text">Colour Calibration<span class="row-label">Correction settings</span></span>
+        <span id="calTogglePwr" class="pwr" onclick="toggleCalibrationSetting(event)" title="Toggle colour correction" aria-label="Toggle colour correction"></span>
+      </button>
       <button class="settings-modal-row" onclick="openLogFromSettings()">
         <span class="row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2"/><path d="M9 9l1 0"/><path d="M9 13l6 0"/><path d="M9 17l6 0"/></svg></span>
         <span class="row-text">Packet Log<span class="row-label">BLE TX/RX debug log</span></span>
         <span class="row-chev">›</span>
       </button>
+</div>
+
+<div class="modal-overlay hidden" id="calibrationOverlay" onclick="closeCalibrationOnOuter(event)">
+  <div class="modal calibration-modal">
+    <div class="modal-header">
+      <h2>Colour Calibration</h2>
+      <button class="modal-close" onclick="closeCalibration()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-toggle-list">
+        <button class="modal-toggle-row" type="button" id="calEnabled" aria-pressed="true">
+          <span>Correction<small>Overall colour correction</small></span>
+          <span class="pwr" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <div class="modal-section-title">Apply To</div>
+      <div class="modal-toggle-list">
+        <button class="modal-toggle-row" type="button" id="calBuiltInScenes" aria-pressed="true">
+          <span>Built-in scenes<small>Scene payload palettes when colours are visible</small></span>
+          <span class="pwr" aria-hidden="true"></span>
+        </button>
+        <button class="modal-toggle-row" type="button" id="calCustomSimpleScenes" aria-pressed="true">
+          <span>Custom scenes<small>Simple custom scene generator</small></span>
+          <span class="pwr" aria-hidden="true"></span>
+        </button>
+        <button class="modal-toggle-row" type="button" id="calCustomAdvancedScenes" aria-pressed="true">
+          <span>Advanced scenes<small>Matrix editor scenes and backgrounds</small></span>
+          <span class="pwr" aria-hidden="true"></span>
+        </button>
+        <button class="modal-toggle-row" type="button" id="calSolidColours" aria-pressed="true">
+          <span>Solid colours<small>Colour wheel, colour presets, and direct RGB</small></span>
+          <span class="pwr" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <div class="modal-section-title">Correction</div>
+      <div class="modal-field">
+        <label class="slider-label" for="calRedScale"><span>Red scale</span><span class="v calibration-readout" id="calRedScaleVal">95.0%</span></label>
+        <track-slider id="calRedScale" min="0" max="150" step="0.1" value="95"></track-slider>
+      </div>
+      <div class="modal-field">
+        <label class="slider-label" for="calBlueWhiteCut"><span>Blue white cut</span><span class="v calibration-readout" id="calBlueWhiteCutVal">50.0%</span></label>
+        <track-slider id="calBlueWhiteCut" min="0" max="100" step="0.1" value="50"></track-slider>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="resetCalibrationDefaults()" style="margin-right:auto">Reset defaults</button>
+      <button class="btn btn-primary" onclick="closeCalibration()">Done</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay hidden" id="unsupportedBleOverlay" onclick="closeUnsupportedBleOnOuter(event)">
@@ -1293,23 +1363,42 @@
 
   syncBulbCardCollapsed();
   mobileDeviceHeader.addEventListener('change', syncBulbCardCollapsed);
+  const MAIN_TAB_PREF_KEY = 'govee-main-tab';
 
-  document.getElementById('mainTabs').addEventListener('click', e => {
-    const btn = e.target.closest('button[data-pane]');
-    if (!btn) return;
+  function syncColourPaneMode() {
+    if (currentState?.modeDisplay?.kind === 'rgb') {
+      setSegmentValue('modeSeg', 'm', 'color');
+      document.querySelectorAll('.modepane').forEach(p => p.classList.toggle('active', p.dataset.m === 'color'));
+    }
+  }
+
+  function activateMainPane(paneId, { remember = true } = {}) {
+    const btn = document.querySelector(`#mainTabs button[data-pane="${paneId}"]`);
+    const pane = document.getElementById(paneId);
+    if (!pane) return false;
     document.querySelectorAll('#mainTabs button').forEach(b => {
       const active = b === btn;
       b.classList.toggle('active', active);
       b.setAttribute('aria-selected', active ? 'true' : 'false');
     });
-    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === btn.dataset.pane));
+    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === paneId));
     syncBulbCardCollapsed();
     document.querySelector('.work-body').scrollTop = 0;
-    if (btn.dataset.pane === 'pColour') requestAnimationFrame(() => {
+    if (remember && btn) localStorage.setItem(MAIN_TAB_PREF_KEY, paneId);
+    if (paneId === 'pColour') requestAnimationFrame(() => {
       window.syncColourWheel?.();
       window.renderColourPresetWheelMarkers?.(colourPresetList());
       renderCctPresetSliderMarkers(colourPresetList());
     });
+    return true;
+  }
+
+  activateMainPane(localStorage.getItem(MAIN_TAB_PREF_KEY), { remember: false });
+
+  document.getElementById('mainTabs').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-pane]');
+    if (!btn) return;
+    activateMainPane(btn.dataset.pane);
   });
 
   // White / colour mode switch
@@ -1508,7 +1597,89 @@
   })();
 
   // Settings popover
+  function syncCalToggle() {
+    const on = isCalibrationEnabled();
+    document.getElementById('calTogglePwr')?.classList.toggle('on', on);
+  }
+  function syncCalibrationModal() {
+    const settings = loadCalibrationSettings();
+    const bindToggle = (id, checked) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.setAttribute('aria-pressed', checked ? 'true' : 'false');
+      el.querySelector('.pwr')?.classList.toggle('on', !!checked);
+    };
+    bindToggle('calEnabled', settings.enabled);
+    bindToggle('calBuiltInScenes', settings.features.builtInScenes);
+    bindToggle('calCustomSimpleScenes', settings.features.customSimpleScenes);
+    bindToggle('calCustomAdvancedScenes', settings.features.customAdvancedScenes);
+    bindToggle('calSolidColours', settings.features.solidColours);
+
+    const red = document.getElementById('calRedScale');
+    const blue = document.getElementById('calBlueWhiteCut');
+    if (red) red.value = (settings.correction.redScale * 100).toFixed(1);
+    if (blue) blue.value = (settings.correction.blueWhiteCut * 100).toFixed(1);
+    updateCalibrationReadouts(settings);
+    syncCalToggle();
+  }
+  function updateCalibrationReadouts(settings = loadCalibrationSettings()) {
+    const redVal = document.getElementById('calRedScaleVal');
+    const blueVal = document.getElementById('calBlueWhiteCutVal');
+    if (redVal) redVal.textContent = `${(settings.correction.redScale * 100).toFixed(1)}%`;
+    if (blueVal) blueVal.textContent = `${(settings.correction.blueWhiteCut * 100).toFixed(1)}%`;
+  }
+  function toggleCalibrationSetting(e) {
+    e?.stopPropagation();
+    setCalibrationEnabled(!isCalibrationEnabled());
+    syncCalibrationModal();
+  }
+  function openCalibration() {
+    syncCalibrationModal();
+    openModal('calibrationOverlay');
+  }
+  function closeCalibration() {
+    closeModal('calibrationOverlay');
+    syncCalToggle();
+  }
+  function closeCalibrationOnOuter(e) {
+    if (e.target === document.getElementById('calibrationOverlay')) closeCalibration();
+  }
+  function resetCalibrationDefaults() {
+    saveCalibrationSettings(DEFAULT_CALIBRATION_SETTINGS);
+    syncCalibrationModal();
+  }
+  function initCalibrationSettings() {
+    const featureMap = {
+      calBuiltInScenes: 'builtInScenes',
+      calCustomSimpleScenes: 'customSimpleScenes',
+      calCustomAdvancedScenes: 'customAdvancedScenes',
+      calSolidColours: 'solidColours',
+    };
+    document.getElementById('calEnabled')?.addEventListener('click', () => {
+      setCalibrationEnabled(!loadCalibrationSettings().enabled);
+      syncCalibrationModal();
+    });
+    Object.entries(featureMap).forEach(([id, feature]) => {
+      document.getElementById(id)?.addEventListener('click', () => {
+        const settings = loadCalibrationSettings();
+        setCalibrationFeatureEnabled(feature, settings.features[feature] === false);
+        syncCalibrationModal();
+      });
+    });
+    document.getElementById('calRedScale')?.addEventListener('input', e => {
+      setCalibrationCorrection({ redScale: Number(e.target.value) / 100 });
+      updateCalibrationReadouts();
+    });
+    document.getElementById('calBlueWhiteCut')?.addEventListener('input', e => {
+      setCalibrationCorrection({ blueWhiteCut: Number(e.target.value) / 100 });
+      updateCalibrationReadouts();
+    });
+    syncCalibrationModal();
+  }
+  document.addEventListener('DOMContentLoaded', initCalibrationSettings);
+
   function openSettings() {
+    syncCalToggle();
     const popover = document.getElementById('settingsOverlay');
     const button = document.getElementById('settingsBtn');
     if (!popover.classList.contains('hidden')) {
@@ -1541,11 +1712,10 @@
   function openBedtimeFromSettings() { closeSettings(); openBedtime(); }
   function openWifiFromSettings()    { closeSettings(); openSetup(); }
   function openFwFromSettings()      { closeSettings(); openFw(); }
+  function openCalibrationFromSettings() { closeSettings(); openCalibration(); }
   function openLogFromSettings() {
     closeSettings();
-    document.querySelectorAll('#mainTabs button').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pLog'));
-    document.querySelector('.work-body').scrollTop = 0;
+    activateMainPane('pLog', { remember: false });
   }
 
   document.getElementById('bedtimeSensitivity').addEventListener('input', function() {

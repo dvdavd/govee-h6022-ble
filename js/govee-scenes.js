@@ -45,7 +45,44 @@ function buildA3MultiPacket(rawBytes) {
   return packets;
 }
 
-function scenePackets(sceneCode, sceneParamBase64) {
+function calibrateSceneRaw(raw, feature = 'builtInScenes') {
+  if (!isCalibrationFeatureEnabled(feature)) return;
+
+  if (raw[0] === 0x41) {
+    // Matrix scene: background at [1..3], then blocks of groups
+    [raw[1], raw[2], raw[3]] = applyCalibration(raw[1], raw[2], raw[3], feature);
+    let pos = 7;
+    const blocks = raw[6];
+    for (let block = 0; block < blocks; block++) {
+      if (pos + 5 >= raw.length) break;
+      const groupBytes = raw[pos] - 15;
+      const groupCount = raw[pos + 5];
+      const groupStart = pos + 6;
+      const groupEnd = groupStart + groupBytes;
+      if (groupBytes < 0 || groupEnd > raw.length) break;
+      pos = groupStart;
+      for (let group = 0; group < groupCount; group++) {
+        if (pos + 3 >= groupEnd) break;
+        const ledCount = raw[pos++];
+        [raw[pos], raw[pos + 1], raw[pos + 2]] = applyCalibration(raw[pos], raw[pos + 1], raw[pos + 2], feature);
+        pos += 3 + ledCount;
+      }
+      pos = groupEnd + 11;
+    }
+  } else if (raw[0] === 0x00) {
+    // Short preset scene: palette of RGB triplets starting at byte 5, length raw[4]
+    const paletteLen = raw[4];
+    const paletteEnd = 5 + paletteLen;
+    if (paletteLen >= 6 && paletteLen % 3 === 0 && paletteEnd <= raw.length) {
+      for (let pos = 5; pos < paletteEnd; pos += 3) {
+        [raw[pos], raw[pos + 1], raw[pos + 2]] = applyCalibration(raw[pos], raw[pos + 1], raw[pos + 2], feature);
+      }
+    }
+  }
+  // Other formats (0x02 etc) are opaque firmware animations — no RGB to calibrate
+}
+
+function scenePackets(sceneCode, sceneParamBase64, calibrationFeature = 'builtInScenes') {
   const lo = sceneCode & 0xFF;
   const hi = (sceneCode >> 8) & 0xFF;
 
@@ -54,6 +91,7 @@ function scenePackets(sceneCode, sceneParamBase64) {
   }
 
   const raw = Array.from(atob(sceneParamBase64), c => c.charCodeAt(0));
+  calibrateSceneRaw(raw, calibrationFeature);
 
   let transformed;
   if (raw[0] === 0x41) {
@@ -69,8 +107,8 @@ function scenePackets(sceneCode, sceneParamBase64) {
   return a3Packets;
 }
 
-async function activateScene(sceneCode, sceneParamBase64) {
-  const packets = scenePackets(sceneCode, sceneParamBase64);
+async function activateScene(sceneCode, sceneParamBase64, calibrationFeature = 'builtInScenes') {
+  const packets = scenePackets(sceneCode, sceneParamBase64, calibrationFeature);
   await sendPackets(packets);
 }
 

@@ -86,7 +86,8 @@ function h6022BlockHeader(gsize, numGroups) {
 
 function h6022GroupsBytes(groups) {
   const data = [];
-  for (const [[r, g, b], indices] of groups) {
+  for (const [color, indices] of groups) {
+    let [r, g, b] = applyCalibration(...color, 'customAdvancedScenes');
     if (indices.length > 255) throw new Error(`Group has ${indices.length} indices; max 255`);
     data.push(indices.length, r & 0xff, g & 0xff, b & 0xff);
     for (const i of indices) data.push(i & 0xff);
@@ -107,7 +108,7 @@ function buildMatrixSceneMulti(blocks, background, bgBrightness) {
     return { gdata, tail, numGroups: blk.groups.length };
   });
 
-  const [br, bg, bb] = background;
+  const [br, bg, bb] = applyCalibration(...background, 'customAdvancedScenes');
   const firstGdata = rendered[0].gdata;
   const mainHeader = [
     br & 0xff, bg & 0xff, bb & 0xff,

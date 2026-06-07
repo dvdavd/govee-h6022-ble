@@ -30,6 +30,135 @@ function rgb2hsv(r, g, b) {
   return [h, mx ? df / mx : 0, mx];
 }
 
+const CAL_PREF_KEY = 'govee-calibration-enabled';
+const CAL_SETTINGS_KEY = 'govee-calibration-settings';
+
+const DEFAULT_CALIBRATION_SETTINGS = {
+  enabled: true,
+  features: {
+    builtInScenes: true,
+    customSimpleScenes: true,
+    customAdvancedScenes: true,
+    solidColours: true,
+  },
+  correction: {
+    redScale: 0.95,
+    blueWhiteCut: 0.5,
+  },
+};
+
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function loadCalibrationSettings() {
+  let stored = null;
+  try {
+    stored = JSON.parse(localStorage.getItem(CAL_SETTINGS_KEY) || 'null');
+  } catch (e) {
+    stored = null;
+  }
+
+  const legacyEnabled = localStorage.getItem(CAL_PREF_KEY);
+  const enabled = stored?.enabled != null
+    ? stored.enabled !== false
+    : legacyEnabled !== 'false';
+
+  return {
+    enabled,
+    features: {
+      ...DEFAULT_CALIBRATION_SETTINGS.features,
+      ...(stored?.features || {}),
+    },
+    correction: {
+      redScale: clampNumber(
+        stored?.correction?.redScale,
+        0,
+        1.5,
+        DEFAULT_CALIBRATION_SETTINGS.correction.redScale
+      ),
+      blueWhiteCut: clampNumber(
+        stored?.correction?.blueWhiteCut,
+        0,
+        1,
+        DEFAULT_CALIBRATION_SETTINGS.correction.blueWhiteCut
+      ),
+    },
+  };
+}
+
+function saveCalibrationSettings(settings) {
+  const normalized = {
+    enabled: settings?.enabled !== false,
+    features: {
+      ...DEFAULT_CALIBRATION_SETTINGS.features,
+      ...(settings?.features || {}),
+    },
+    correction: {
+      redScale: clampNumber(
+        settings?.correction?.redScale,
+        0,
+        1.5,
+        DEFAULT_CALIBRATION_SETTINGS.correction.redScale
+      ),
+      blueWhiteCut: clampNumber(
+        settings?.correction?.blueWhiteCut,
+        0,
+        1,
+        DEFAULT_CALIBRATION_SETTINGS.correction.blueWhiteCut
+      ),
+    },
+  };
+  localStorage.setItem(CAL_SETTINGS_KEY, JSON.stringify(normalized));
+  localStorage.setItem(CAL_PREF_KEY, normalized.enabled ? 'true' : 'false');
+  return normalized;
+}
+
+function isCalibrationEnabled() {
+  return loadCalibrationSettings().enabled;
+}
+
+function setCalibrationEnabled(on) {
+  const settings = loadCalibrationSettings();
+  settings.enabled = !!on;
+  saveCalibrationSettings(settings);
+}
+
+function isCalibrationFeatureEnabled(feature) {
+  const settings = loadCalibrationSettings();
+  if (!settings.enabled) return false;
+  if (!feature) return true;
+  return settings.features[feature] !== false;
+}
+
+function setCalibrationFeatureEnabled(feature, on) {
+  const settings = loadCalibrationSettings();
+  settings.features[feature] = !!on;
+  saveCalibrationSettings(settings);
+}
+
+function setCalibrationCorrection(patch) {
+  const settings = loadCalibrationSettings();
+  settings.correction = { ...settings.correction, ...(patch || {}) };
+  saveCalibrationSettings(settings);
+}
+
+// White point observation: (255,255,255) → (253,255,146)
+// Blue gain is non-linear: full intensity for saturated blue, cut for white.
+function applyCalibration(r, g, b, feature = null) {
+  if (!isCalibrationFeatureEnabled(feature)) return [r, g, b];
+  const { correction } = loadCalibrationSettings();
+  const whiteness = Math.min(r, g) / 255;
+  const blueGain = 1.0 - correction.blueWhiteCut * whiteness;
+  return [
+    Math.round(r * correction.redScale),
+    g,
+    Math.max(0, Math.min(255, Math.round(b * blueGain))),
+  ];
+}
+
 function hexToRgb(hex) {
   return [
     parseInt(hex.slice(1, 3), 16),
