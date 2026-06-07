@@ -350,10 +350,11 @@ function initSgColorWheel() {
   function drawWheel() {
     const img = ctx.createImageData(W, W);
     const d = img.data;
+    const aa = 3;
     for (let y = 0; y < W; y++) {
       for (let x = 0; x < W; x++) {
-        const dx = x - R;
-        const dy = y - R;
+        const dx = x + 0.5 - R;
+        const dy = y + 0.5 - R;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const i = (y * W + x) * 4;
         if (dist > R) {
@@ -364,7 +365,12 @@ function initSgColorWheel() {
         const sat = Math.min(dist / R, 1);
         const [r, g, b] = hsv2rgb(hue, sat, 1);
         d[i] = r; d[i + 1] = g; d[i + 2] = b;
-        d[i + 3] = dist > R - 1.5 ? Math.round(255 * (R - dist + 1.5)) : 255;
+        if (dist > R - aa) {
+          const t = Math.max(0, Math.min(1, (R - dist) / aa));
+          d[i + 3] = Math.round(255 * t * t * (3 - 2 * t));
+        } else {
+          d[i + 3] = 255;
+        }
       }
     }
     ctx.putImageData(img, 0, 0);
