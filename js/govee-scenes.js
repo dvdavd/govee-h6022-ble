@@ -114,7 +114,7 @@ async function activateScene(sceneCode, sceneParamBase64, calibrationFeature = '
 
 const SCENE_PARAMS = {
   8505: 'AA8OYBj/ZAD/ZAD/ZAD/ZAD/ZAD/ZAD/ZAD/ZAA=',
-  'Fast Fire': 'AA8OYBj/ZAD/ZAD/ZAD/ZAD/ZAD/ZAD/ZAD/ZAA=',
+
   'Flash (Sound)': 'AAQIQBgAlhTd3wDj5Rb/qwD3eXbYg/+TNv06hv8=',
   'Spin (Sound)': 'AAQHQBgAlhTd3wDj5Rb/qwD3eXbYg/+TNv06hv8=',
   'Lightning (Sound)': 'AAQGQBgAlhTd3wDj5Rb/qwD3eXbYg/+TNv06hv8=',
@@ -156,13 +156,12 @@ const SCENE_PARAMS = {
   8504: 'QQA8/zQAAjEAAyMAAR4A/wRWX2FiY2Rqa2xtbm9wcXR1dnd4eXp7fH1+f4CBgoNMZAMAAf//AAAAACwAAx4AARn///8ABwsMEhkdIyUpLjY8Q0dIT1VaYWVtcnh+VmQBAAL//wAAAAA=',
   'Breathe': 'AAUAIxgAlhTd3wDj5Rb/qwD3eXbYg/+TNv06hv8=',
   'Gradient': 'AAAACBhaAIRsAKVLGbcAjAAAlUwGcv8iI/YANKA=',
-  'Fire': 'AA8AIwz/AAD/UAD/tAD//wA=',
   'Rainbow': 'AAkAIxX/AAD/fwD//wAA/wAAAP8A//+LAP8=',
-  'Dream 1': 'AA4NIxX/AAD/fwD//wAA/wAAAP8A//+LAP8=',
-  'Dream 2': 'AA4OVQ9S4+H/qwD3eXbYg/+TNv0=',
-  'Graffiti 1': 'AFINIxX/AAD/fwD//wAA/wAAAP8A//+LAP8=',
-  'Graffiti 2': 'AFIOIxX/AAD/fwD//wAA/wAAAP8A//+LAP8=',
-  'Graffiti 3': 'AFI5SBj/vgv7Vgf/AACDOOwAOrcA/wAAAP8A//8=',
+  'Dreamlike': 'AA4OVQ9S4+H/qwD3eXbYg/+TNv0=',
+  'Graffiti': 'AFI5SBj/vgv7Vgf/AACDOOwAOrcA/wAAAP8A//8=',
+  8506: 'AAAACBhaAIRsAKVLGbcAjAAAlUwGcv8iI/YANKA=',
+  8507: 'AFI5SBj/vgv7Vgf/AACDOOwAOrcA/wAAAP8A//8=',
+  8508: 'AA4OVQ9S4+H/qwD3eXbYg/+TNv0=',
   45: '',
   8509: 'QQEBAWQAAZsAA40ABRj/AAAAAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcY//8AGBkaGxwdHh8gISIjJCUmJygpKissLS4vGAD/ADAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGRxgAAP9ISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8YiwD/YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3VWQCAAH//wAAAAA=',
   8510: 'QQEBAWQAAaMAA5UABDn/AAAAAQIMDQ4YGRonKCktLi8zNDU5Ojs/QEFFRkdLTE1RUlNUVVZaW1xgYWJmZ2hsbW5yc3R4eXp+f4AS//8AAwQFCQoLDxARFRYXGxwdISIjIQAA/wYHCBITFB4fICQlJjAxMjw9PkhJSl1eX2lqa3V2d4GCgxgA/wAqKyw2NzhCQ0ROT1BXWFljZGVvcHF7fH1XZAQAAv//AAAAAA==',
@@ -220,15 +219,43 @@ const SCENE_PARAMS = {
 };
 
 const SCENE_CATEGORIES = {
-  'Custom': ['Fast Fire'],
+  'Custom': [],
   'Natural': [8478, 8479, 42, 8480, 8481, 44, 43, 46, 41, 8482, 8483, 8484, 40, 8485, 8486, 8487, 8488, 8489, 8490, 8491, 8492, 8493, 8494, 8495, 8496],
-  'Life': [99, 35, 38, 8497, 8498, 8499, 8500, 8501, 8502, 8503, 8504, 'Breathe', 'Gradient', 'Fire', 'Rainbow', 'Dream 1', 'Dream 2', 'Graffiti 1', 'Graffiti 2', 'Graffiti 3', 20901, 45, 8509, 8510, 8511, 8512, 'Gleam'],
+  'Life': [99, 35, 38, 8497, 8498, 8499, 8500, 8501, 8502, 8503, 8504, 'Breathe', 'Gradient', 'Rainbow', 'Dreamlike', 'Graffiti', 45, 8509, 8510, 8511, 8512, 'Gleam'],
   'Festival': [8513, 8514, 8515, 8516, 8517, 8518, 8519, 8520, 8521, 21780, 21781, 21782, 21783, 21784, 21785, 21786, 21787, 21788, 21789, 21790, 21791, 21792, 21793, 21794, 21795, 21796, 21797, 21798, 21799, 23040],
   'Sleep': [8522, 47, 8523, 8524, 8525, 8526, 8527],
   'Starry Sky': [8528, 8529, 8530, 8531, 8532, 8533],
   'Sound': ['Flash (Sound)', 'Spin (Sound)', 'Lightning (Sound)'],
   'Other': [20902, 20903, 20904, 20905]
 };
+
+function sceneParamForKey(key, code = null) {
+  return SCENE_PARAMS[key] ?? (code != null ? SCENE_PARAMS[code] : null);
+}
+
+function builtInSceneInfo(key) {
+  const code = typeof sceneCodeFromKey === 'function'
+    ? sceneCodeFromKey(String(key))
+    : typeof key === 'number' ? key : null;
+  const rawName = typeof key === 'string'
+    ? (SCENE_NAMES[key] || key)
+    : SCENE_NAMES[key];
+
+  return {
+    key: String(key),
+    code,
+    name: (rawName || (code != null ? `#${code}` : String(key))).replace(/ \(Sound\)$/, ''),
+    param: sceneParamForKey(key, code),
+  };
+}
+
+function assignableSceneOptions() {
+  return Object.entries(SCENE_NAMES)
+    .filter(([key]) => !isNaN(parseInt(key)))
+    .map(([code, name]) => ({ code: parseInt(code), name }))
+    .filter(scene => typeof canAssignSceneToDevicePreset !== 'function' || canAssignSceneToDevicePreset(scene.code))
+    .sort((a, b) => a.code - b.code);
+}
 
 let activeSceneCategory = 'Natural';
 let activeSceneKey = null;
@@ -610,20 +637,15 @@ function renderSceneGrid() {
 
   const scenes = SCENE_CATEGORIES[activeSceneCategory] || [];
   for (const key of scenes) {
-    const rawName = typeof key === 'string' ? key : SCENE_NAMES[key];
-    if (!rawName) continue;
-    const name = rawName.replace(/ \(Sound\)$/, '');
-    if (search && !name.toLowerCase().includes(search)) continue;
+    const scene = builtInSceneInfo(key);
+    if (!scene.code || !scene.name) continue;
+    if (search && !scene.name.toLowerCase().includes(search)) continue;
 
     const badge = document.createElement('button');
     badge.className = 'scene-badge';
-    badge.title = typeof key === 'string' ? key : `Code ${key}`;
-    badge.dataset.sceneCode = typeof key === 'number' ? key
-      : key === 'Gradient' ? 8506
-      : (key === 'Dream 1' || key === 'Dream 2') ? 8508
-      : (key === 'Graffiti 1' || key === 'Graffiti 2' || key === 'Graffiti 3') ? 8507
-      : 8505;
-    badge.dataset.sceneKey = String(key);
+    badge.title = typeof key === 'string' ? key : `Code ${scene.code}`;
+    badge.dataset.sceneCode = scene.code;
+    badge.dataset.sceneKey = scene.key;
 
     applySceneCardStyle(badge, key);
 
@@ -632,41 +654,50 @@ function renderSceneGrid() {
 
     const label = document.createElement('span');
     label.className = 'scene-name';
-    label.textContent = name;
+    label.textContent = scene.name;
 
     const numCode = parseInt(badge.dataset.sceneCode);
-    const isFav = (currentState?.scenePresetList || []).includes(numCode);
-    const favBtn = document.createElement('button');
-    favBtn.className = 'scene-fav-btn' + (isFav ? ' active' : '');
-    favBtn.innerHTML = isFav ? HEART_FILLED_SVG : HEART_OUTLINE_SVG;
-    favBtn.title = isFav ? 'Remove from presets' : 'Add to presets';
-    favBtn.setAttribute('aria-label', isFav ? 'Remove from presets' : 'Add to presets');
-    favBtn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
-    favBtn.dataset.sceneCode = numCode;
-    favBtn.onclick = (e) => { e.stopPropagation(); toggleSceneFavourite(numCode); };
+    const sceneKey = scene.key;
+    const presetCodes = currentState?.scenePresetList || [];
+    const presetKeys = typeof scenePresetKeysForState === 'function'
+      ? scenePresetKeysForState(currentState)
+      : presetCodes.map(code => String(code));
+    const isFav = presetKeys.some((presetKey, i) => {
+      if (presetCodes[i] !== numCode) return false;
+      return typeof scenePresetKeysMatch === 'function'
+        ? scenePresetKeysMatch(numCode, presetKey, sceneKey)
+        : presetKey === sceneKey;
+    });
+    const canAssignPreset = canShowScenePresetHeart(numCode, sceneKey);
 
-    inner.append(label, favBtn);
+    inner.appendChild(label);
+    if (canAssignPreset) {
+      const favBtn = document.createElement('button');
+      favBtn.className = 'scene-fav-btn' + (isFav ? ' active' : '');
+      favBtn.innerHTML = isFav ? HEART_FILLED_SVG : HEART_OUTLINE_SVG;
+      favBtn.title = isFav ? 'Remove from presets' : 'Add to presets';
+      favBtn.setAttribute('aria-label', favBtn.title);
+      favBtn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
+      favBtn.dataset.sceneCode = numCode;
+      favBtn.dataset.sceneKey = sceneKey;
+      favBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleSceneFavourite(numCode, typeof key === 'string' ? key : null);
+      };
+      inner.appendChild(favBtn);
+    }
     badge.append(inner);
     badge.onclick = async () => {
       if (!isConnected()) return;
       try {
-        const param = SCENE_PARAMS[key];
-        const code = typeof key === 'string'
-          ? (key === 'Breathe' || key === 'Fire' || key === 'Rainbow' || key === 'Gleam' || key === 'Fast Fire' || key === 'Flash (Sound)' || key === 'Spin (Sound)' || key === 'Lightning (Sound)' ? 8505
-            : key === 'Gradient' ? 8506
-            : key === 'Dream 1' || key === 'Dream 2' ? 8508
-            : key === 'Graffiti 1' || key === 'Graffiti 2' || key === 'Graffiti 3' ? 8507
-            : 8505)
-          : key;
-        const sceneLabel = typeof key === 'string' ? name : (SCENE_NAMES[code] || `#${code}`);
         if (typeof rememberActiveScene === 'function') {
-          rememberActiveScene(String(key), code, sceneLabel, scenePreviewGradient(key));
+          rememberActiveScene(scene.key, scene.code, scene.name, scenePreviewGradient(key));
         } else {
-          activeSceneKey = String(key);
+          activeSceneKey = scene.key;
         }
         await runBleTransaction('Scene', async () => {
-          await activateScene(code, param);
-          assumeLightOn({ musicMode: false, sceneCode: code, modeDisplay: { kind: 'scene', label: sceneLabel } });
+          await activateScene(scene.code, scene.param);
+          assumeLightOn({ musicMode: false, sceneCode: scene.code, modeDisplay: { kind: 'scene', label: scene.name } });
           await new Promise(r => setTimeout(r, 200));
           currentState = mergeState(currentState, await queryModeState());
         });
@@ -742,6 +773,34 @@ function renderSceneGrid() {
       label.className = 'scene-name';
       label.textContent = name;
       inner.appendChild(label);
+
+      const matrixCode = 8524;
+      const matrixKey = `matrix:${name}`;
+      const presetCodes = currentState?.scenePresetList || [];
+      const presetKeys = typeof scenePresetKeysForState === 'function'
+        ? scenePresetKeysForState(currentState)
+        : presetCodes.map(code => String(code));
+      const isFav = presetKeys.some((presetKey, i) => {
+        if (presetCodes[i] !== matrixCode) return false;
+        return typeof scenePresetKeysMatch === 'function'
+          ? scenePresetKeysMatch(matrixCode, presetKey, matrixKey)
+          : presetKey === matrixKey;
+      });
+      if (canShowScenePresetHeart(matrixCode, matrixKey)) {
+        const favBtn = document.createElement('button');
+        favBtn.className = 'scene-fav-btn' + (isFav ? ' active' : '');
+        favBtn.innerHTML = isFav ? HEART_FILLED_SVG : HEART_OUTLINE_SVG;
+        favBtn.title = isFav ? 'Remove from presets' : 'Add to presets';
+        favBtn.setAttribute('aria-label', favBtn.title);
+        favBtn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
+        favBtn.dataset.sceneCode = matrixCode;
+        favBtn.dataset.sceneKey = matrixKey;
+        favBtn.onclick = (e) => {
+          e.stopPropagation();
+          toggleSceneFavourite(matrixCode, matrixKey);
+        };
+        inner.appendChild(favBtn);
+      }
       badge.appendChild(inner);
 
       badge.onclick = async () => {
@@ -777,15 +836,45 @@ function refreshCustomSceneGrid() {
   if (activeSceneCategory === 'Custom') renderSceneGrid();
 }
 
+function canShowScenePresetHeart(code, key) {
+  if (typeof canAssignSceneToDevicePreset === 'function') {
+    return canAssignSceneToDevicePreset(code, key);
+  }
+
+  if (Number(code) === 15626 || String(key || '').startsWith('sg:')) return false;
+  const param = typeof sceneParamForKey === 'function'
+    ? sceneParamForKey(key ?? code, code)
+    : SCENE_PARAMS?.[key] ?? SCENE_PARAMS?.[code];
+  if (!param) return true;
+  try {
+    return atob(param).charCodeAt(0) !== 0x00;
+  } catch (e) {
+    return true;
+  }
+}
+
 function updateFavButtons() {
   const list = currentState?.scenePresetList || [];
+  const keys = typeof scenePresetKeysForState === 'function'
+    ? scenePresetKeysForState(currentState)
+    : list.map(code => String(code));
   document.querySelectorAll('.scene-fav-btn').forEach(btn => {
     const code = parseInt(btn.dataset.sceneCode);
-    const isFav = list.includes(code);
+    const key = btn.dataset.sceneKey || String(code);
+    const isFav = keys.some((presetKey, i) => {
+      if (list[i] !== code) return false;
+      return typeof scenePresetKeysMatch === 'function'
+        ? scenePresetKeysMatch(code, presetKey, key)
+        : presetKey === key;
+    });
+    const canAssignPreset = canShowScenePresetHeart(code, key);
     btn.classList.toggle('active', isFav);
     btn.innerHTML = isFav ? HEART_FILLED_SVG : HEART_OUTLINE_SVG;
-    btn.title = isFav ? 'Remove from presets' : 'Add to presets';
-    btn.setAttribute('aria-label', isFav ? 'Remove from presets' : 'Add to presets');
+    btn.disabled = !canAssignPreset && !isFav;
+    btn.title = !canAssignPreset && !isFav
+      ? 'Web UI only'
+      : isFav ? 'Remove from presets' : 'Add to presets';
+    btn.setAttribute('aria-label', btn.title);
     btn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
   });
 }

@@ -2,6 +2,8 @@
 
 // ── Protocol encoding ────────────────────────────────────────────────────────
 
+const SCENE_PRESET_KEYS_KEY = 'govee_scene_preset_keys';
+
 function encodeColourPresetEntry(c) {
   if (c.type === 0x01) {
     return [0x01, c.b1, c.b2, 0x00];
@@ -10,18 +12,36 @@ function encodeColourPresetEntry(c) {
   }
 }
 
-function encodeScenePresetEntry(code) {
+function encodeScenePresetEntry(code, paramKey = null) {
   const lo = code & 0xff;
   const hi = (code >> 8) & 0xff;
-  const param = typeof SCENE_PARAMS !== 'undefined' ? SCENE_PARAMS[code] : null;
+  const lookup = paramKey ?? code;
+  const param = scenePresetParamForKey(code, lookup);
   if (param) {
     const raw = Array.from(atob(param), c => c.charCodeAt(0));
-    if (raw[0] === 0x41) {
+    if (raw[0] === 0x00 || raw[0] === 0x41) {
       const payload = raw.slice(1);
       return [lo, hi, 0x00, 0x00, 0x05, payload.length & 0xff, (payload.length >> 8) & 0xff, ...payload];
     }
   }
   return [lo, hi, 0x00, 0xff];
+}
+
+function scenePresetParamForKey(code, key = null) {
+  if (String(key || '').startsWith('matrix:') && typeof loadMatrixPresets === 'function') {
+    const name = String(key).slice(7);
+    const preset = loadMatrixPresets()[name];
+    if (preset && typeof matrixEditorStateFromPreset === 'function' && typeof buildMatrixSceneParam === 'function') {
+      const state = matrixEditorStateFromPreset(preset);
+      if (state) {
+        const raw = buildMatrixSceneParam(state.layers, state.bgColor, state.bgBrightness);
+        return btoa(String.fromCharCode(...raw));
+      }
+    }
+  }
+
+  if (typeof sceneParamForKey === 'function') return sceneParamForKey(key ?? code, code);
+  return typeof SCENE_PARAMS !== 'undefined' ? SCENE_PARAMS[key] ?? SCENE_PARAMS[code] : null;
 }
 
 async function writeColourPresets(entries) {
@@ -33,10 +53,15 @@ async function writeColourPresets(entries) {
   await recvMatch(expectOpcode(0xa3, 0x0b), 10000);
 }
 
-async function writeScenePresets(codes) {
+async function writeScenePresets(codes, paramKeys = {}) {
   const payload = [0x0b, 0x01];
-  for (const code of codes) {
-    payload.push(...encodeScenePresetEntry(code));
+  for (let i = 0; i < codes.length; i++) {
+    const code = codes[i];
+    const paramKey = Array.isArray(paramKeys) ? paramKeys[i] : paramKeys[code];
+    if (!canAssignSceneToDevicePreset(code, paramKey)) {
+      throw new Error('This scene is web-only for this lamp');
+    }
+    payload.push(...encodeScenePresetEntry(code, paramKey ?? null));
   }
   await sendPackets(buildA3MultiPacket(payload));
   await recvMatch(expectOpcode(0xa3, 0x0b), 10000);
@@ -54,6 +79,83 @@ async function reorderScenePresets(codes) {
     payload.push(code & 0xff, (code >> 8) & 0xff);
   }
   await send(makePacket(payload));
+}
+
+function scenePresetCodeFromKey(key) {
+  if (key == null) return null;
+  if (typeof sceneCodeFromKey === 'function') return sceneCodeFromKey(String(key));
+  const numeric = Number(key);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function scenePresetKeyForCode(code, paramKey = null) {
+  const key = paramKey != null ? String(paramKey) : String(code);
+  return scenePresetCodeFromKey(key) === code ? key : String(code);
+}
+
+function scenePresetKeysMatch(code, storedKey, targetKey) {
+  const stored = scenePresetKeyForCode(code, storedKey);
+  const target = scenePresetKeyForCode(code, targetKey);
+  if (stored === target) return true;
+  const defaultName = (SCENE_NAMES[code] || '').replace(/ \(Sound\)$/, '');
+  return stored === String(code) && target === defaultName;
+}
+
+function isSgScenePreset(code, key = null) {
+  return Number(code) === 15626 || String(key || '').startsWith('sg:');
+}
+
+function matrixScenePresetName(key = null) {
+  return String(key || '').startsWith('matrix:') ? String(key).slice(7) : null;
+}
+
+function scenePresetParamFirstByte(code, paramKey = null) {
+  const key = scenePresetKeyForCode(code, paramKey);
+  const param = scenePresetParamForKey(code, key);
+  if (!param) return null;
+  try {
+    return atob(param).charCodeAt(0);
+  } catch (e) {
+    return null;
+  }
+}
+
+function canAssignSceneToDevicePreset(code, key = null) {
+  return !isSgScenePreset(code, key) && scenePresetParamFirstByte(code, key) !== 0x00;
+}
+
+function readStoredScenePresetKeys(codes = []) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SCENE_PRESET_KEYS_KEY) || '[]');
+    if (!Array.isArray(stored) || stored.length !== codes.length) return codes.map(code => String(code));
+    return stored.map((item, i) => {
+      if (!item || Number(item.code) !== Number(codes[i])) return String(codes[i]);
+      return scenePresetKeyForCode(Number(codes[i]), item.key);
+    });
+  } catch (e) {
+    return codes.map(code => String(code));
+  }
+}
+
+function writeStoredScenePresetKeys(codes = [], keys = []) {
+  try {
+    const entries = codes.map((code, i) => ({
+      code,
+      key: scenePresetKeyForCode(code, keys[i]),
+    }));
+    localStorage.setItem(SCENE_PRESET_KEYS_KEY, JSON.stringify(entries));
+  } catch (e) {
+    // Presets still work without the local labels; device state remains source of truth.
+  }
+}
+
+function scenePresetKeysForState(s = currentState) {
+  const codes = s?.scenePresetList || [];
+  const existing = Array.isArray(s?.scenePresetKeyList) ? s.scenePresetKeyList : null;
+  if (existing?.length === codes.length) {
+    return existing.map((key, i) => scenePresetKeyForCode(codes[i], key));
+  }
+  return readStoredScenePresetKeys(codes);
 }
 
 // ── Colour preset editing ────────────────────────────────────────────────────
@@ -391,10 +493,13 @@ function openScenePresetEditor(slot) {
   const select = document.getElementById('scenePresetSelect');
 
   select.innerHTML = '';
-  const allScenes = Object.entries(SCENE_NAMES)
-    .filter(([k]) => !isNaN(parseInt(k)))
-    .map(([code, name]) => ({ code: parseInt(code), name }))
-    .sort((a, b) => a.code - b.code);
+  const allScenes = typeof assignableSceneOptions === 'function'
+    ? assignableSceneOptions()
+    : Object.entries(SCENE_NAMES)
+      .filter(([k]) => !isNaN(parseInt(k)))
+      .map(([code, name]) => ({ code: parseInt(code), name }))
+      .filter(s => canAssignSceneToDevicePreset(s.code))
+      .sort((a, b) => a.code - b.code);
 
   for (const s of allScenes) {
     const opt = document.createElement('option');
@@ -416,16 +521,23 @@ async function saveScenePreset() {
   if (editingSceneSlot < 0 || !currentState?.scenePresetList) return;
 
   const code = parseInt(document.getElementById('scenePresetSelect').value, 10);
+  if (!canAssignSceneToDevicePreset(code)) {
+    log('info', 'This scene is web-only; it crashes the lamp when added as a scene preset');
+    return;
+  }
   const codes = [...currentState.scenePresetList];
+  const keys = scenePresetKeysForState();
   codes[editingSceneSlot] = code;
+  keys[editingSceneSlot] = String(code);
 
   try {
     await runBleTransaction('Scene preset', async () => {
-      await writeScenePresets(codes);
-      currentState = mergeState(currentState, { scenePresetList: codes, scenePresets: codes.length });
+      await writeScenePresets(codes, keys);
+      writeStoredScenePresetKeys(codes, keys);
+      currentState = mergeState(currentState, { scenePresetList: codes, scenePresetKeyList: keys, scenePresets: codes.length });
       updateUI(currentState);
       await new Promise(r => setTimeout(r, 200));
-      currentState = mergeState(currentState, await queryPresetState());
+      currentState = mergeState(currentState, { ...await queryPresetState(), scenePresetKeyList: keys });
     });
     updateUI(currentState);
     closeScenePresetEditor();
@@ -441,13 +553,17 @@ async function deleteScenePresetSlot(slot) {
 
   try {
     await runBleTransaction('Delete scene preset', async () => {
+      const codes = currentState.scenePresetList.filter((_, i) => i !== slot);
+      const keys = scenePresetKeysForState().filter((_, i) => i !== slot);
       await deleteScenePreset(code);
+      writeStoredScenePresetKeys(codes, keys);
       currentState = mergeState(currentState, {
-        scenePresetList: currentState.scenePresetList.filter((_, i) => i !== slot),
+        scenePresetList: codes,
+        scenePresetKeyList: keys,
       });
       updateUI(currentState);
       await new Promise(r => setTimeout(r, 200));
-      currentState = mergeState(currentState, await queryPresetState());
+      currentState = mergeState(currentState, { ...await queryPresetState(), scenePresetKeyList: keys });
     });
     updateUI(currentState);
   } catch (e) {
@@ -458,18 +574,21 @@ async function deleteScenePresetSlot(slot) {
 async function moveScenePreset(slot, dir) {
   if (!currentState?.scenePresetList) return;
   const codes = [...currentState.scenePresetList];
+  const keys = scenePresetKeysForState();
   const newSlot = slot + dir;
   if (newSlot < 0 || newSlot >= codes.length) return;
 
   [codes[slot], codes[newSlot]] = [codes[newSlot], codes[slot]];
+  [keys[slot], keys[newSlot]] = [keys[newSlot], keys[slot]];
 
   try {
     await runBleTransaction('Reorder scene preset', async () => {
       await reorderScenePresets(codes);
-      currentState = mergeState(currentState, { scenePresetList: codes });
+      writeStoredScenePresetKeys(codes, keys);
+      currentState = mergeState(currentState, { scenePresetList: codes, scenePresetKeyList: keys });
       updateUI(currentState);
       await new Promise(r => setTimeout(r, 200));
-      currentState = mergeState(currentState, await queryPresetState());
+      currentState = mergeState(currentState, { ...await queryPresetState(), scenePresetKeyList: keys });
     });
     updateUI(currentState);
   } catch (e) {
@@ -479,32 +598,41 @@ async function moveScenePreset(slot, dir) {
 
 // ── Scene favourite toggle ───────────────────────────────────────────────────
 
-async function toggleSceneFavourite(code) {
+async function toggleSceneFavourite(code, paramKey = null) {
   if (!isConnected()) return;
   const list = [...(currentState?.scenePresetList || [])];
-  const idx = list.indexOf(code);
+  const keys = scenePresetKeysForState();
+  const key = scenePresetKeyForCode(code, paramKey);
+  const idx = keys.findIndex((storedKey, i) => list[i] === code && scenePresetKeysMatch(code, storedKey, key));
+  const removing = idx >= 0;
 
-  if (idx >= 0) {
+  if (removing) {
     list.splice(idx, 1);
+    keys.splice(idx, 1);
   } else {
     if (list.length >= 6) {
       log('info', 'Scene presets full (max 6) — remove one first');
       return;
     }
+    if (!canAssignSceneToDevicePreset(code, key)) {
+      log('info', 'This scene is web-only; it crashes the lamp when added as a scene preset');
+      return;
+    }
     list.push(code);
+    keys.push(key);
   }
 
   try {
     await runBleTransaction('Favourite scene', async () => {
-      if (idx >= 0) {
+      if (removing) {
         await deleteScenePreset(code);
       } else {
-        await writeScenePresets([code]);
+        await writeScenePresets([code], [key]);
       }
-      currentState = mergeState(currentState, { scenePresetList: list, scenePresets: list.length });
-      updateUI(currentState);
+      writeStoredScenePresetKeys(list, keys);
+      currentState = mergeState(currentState, { scenePresetList: list, scenePresetKeyList: keys, scenePresets: list.length });
       await new Promise(r => setTimeout(r, 200));
-      currentState = mergeState(currentState, await queryPresetState());
+      currentState = mergeState(currentState, { ...await queryPresetState(), scenePresetKeyList: keys });
     });
     updateUI(currentState);
   } catch (e) {
@@ -526,7 +654,8 @@ function renderScenePresetGrid(s) {
   const container = document.getElementById('scenePresetRow');
   if (!s?.scenePresetList) return;
 
-  const presetKey = s.scenePresetList.join(',');
+  const presetKeys = scenePresetKeysForState(s);
+  const presetKey = s.scenePresetList.map((code, i) => `${code}:${presetKeys[i]}`).join(',');
   if (container.dataset.presetCodes === presetKey) return;
   container.dataset.presetCodes = presetKey;
 
@@ -541,15 +670,28 @@ function renderScenePresetGrid(s) {
   }
 
   s.scenePresetList.forEach((code, i) => {
-    const name = SCENE_NAMES[code] ?? `Scene ${code}`;
+    const key = presetKeys[i];
+    const isSgPreset = isSgScenePreset(code, key);
+    const matrixName = matrixScenePresetName(key);
+    const matrixPreset = matrixName && typeof loadMatrixPresets === 'function'
+      ? loadMatrixPresets()[matrixName]
+      : null;
+    const name = matrixName || (key && key !== String(code)
+      ? (SCENE_NAMES[key] || key).replace(/ \(Sound\)$/, '')
+      : SCENE_NAMES[code] ?? `Scene ${code}`);
 
     const badge = document.createElement('button');
     badge.className = 'scene-badge preset-scene-badge';
     badge.draggable = true;
     badge.dataset.sceneCode = code;
-    badge.title = name;
+    badge.dataset.sceneKey = key;
+    badge.title = isSgPreset ? `${name} (remove from presets)` : name;
 
-    applySceneCardStyle(badge, code);
+    if (matrixPreset && typeof applyCustomPresetCardStyle === 'function' && typeof matrixPresetPreviewGradient === 'function') {
+      applyCustomPresetCardStyle(badge, matrixPresetPreviewGradient(matrixPreset));
+    } else {
+      applySceneCardStyle(badge, key || code);
+    }
 
     const inner = document.createElement('div');
     inner.className = 'scene-badge__inner';
@@ -569,14 +711,24 @@ function renderScenePresetGrid(s) {
 
     badge.onclick = async () => {
       if (!isConnected()) return;
+      if (isSgPreset) {
+        log('info', 'Simple Scene Generator presets are web-only; remove this slot before using the lamp preset button');
+        return;
+      }
       try {
         await runBleTransaction('Scene', async () => {
-          if (typeof rememberActiveScene === 'function') {
-            rememberActiveScene(String(code), code, name, scenePreviewGradient(code));
-          } else if (typeof activeSceneKey !== 'undefined') {
-            activeSceneKey = String(code);
+          if (matrixPreset && typeof activateMatrixPresetByData === 'function') {
+            await activateMatrixPresetByData(matrixPreset, matrixName);
+            await new Promise(r => setTimeout(r, 200));
+            currentState = mergeState(currentState, await queryModeState());
+            return;
           }
-          await activateScene(code, SCENE_PARAMS[code]);
+          if (typeof rememberActiveScene === 'function') {
+            rememberActiveScene(key || String(code), code, name, scenePreviewGradient(key || code));
+          } else if (typeof activeSceneKey !== 'undefined') {
+            activeSceneKey = key || String(code);
+          }
+          await activateScene(code, scenePresetParamForKey(code, key));
           assumeLightOn({ musicMode: false, sceneCode: code, modeDisplay: { kind: 'scene', label: name } });
           await new Promise(r => setTimeout(r, 200));
           currentState = mergeState(currentState, await queryModeState());
@@ -612,16 +764,20 @@ function renderScenePresetGrid(s) {
       if (from === null || from === i) return;
 
       const codes = [...currentState.scenePresetList];
+      const keys = scenePresetKeysForState();
       const [moved] = codes.splice(from, 1);
+      const [movedKey] = keys.splice(from, 1);
       codes.splice(i, 0, moved);
+      keys.splice(i, 0, movedKey);
 
       try {
         await runBleTransaction('Reorder scene preset', async () => {
           await reorderScenePresets(codes);
-          currentState = mergeState(currentState, { scenePresetList: codes });
+          writeStoredScenePresetKeys(codes, keys);
+          currentState = mergeState(currentState, { scenePresetList: codes, scenePresetKeyList: keys });
           updateUI(currentState);
           await new Promise(r => setTimeout(r, 200));
-          currentState = mergeState(currentState, await queryPresetState());
+          currentState = mergeState(currentState, { ...await queryPresetState(), scenePresetKeyList: keys });
         });
         updateUI(currentState);
       } catch (err) {

@@ -31,7 +31,7 @@ const SCENE_NAMES = {
   21791: 'Christmas Tree', 21792: 'Gingerbread Man', 21793: 'Christmas Stocking',
   21794: 'Santa Claus', 21795: 'Grim Graveyard', 21796: 'Poison',
   21797: 'Lightning Bats', 21798: 'Halloween Witches', 21799: 'Thanksgiving',
-  'Fast Fire': 'Fast Fire',
+
   'Flash (Sound)': 'Flash (Sound)',
   'Spin (Sound)': 'Spin (Sound)',
   'Lightning (Sound)': 'Lightning (Sound)',
@@ -40,6 +40,18 @@ const SCENE_NAMES = {
 const MUSIC_NAMES = {
   0x33: 'Hopping', 0x38: 'Rhythm', 0x39: 'Energic', 0x54: 'Spectrum',
   0x55: 'Color Painting', 0x63: 'Light Waves', 0x64: 'Dandelion', 0x65: 'Meteor Shower',
+};
+
+const SCENE_CODE_ALIASES = {
+  'Breathe': 8505,
+  'Rainbow': 8505,
+  'Gleam': 8505,
+  'Flash (Sound)': 8505,
+  'Spin (Sound)': 8505,
+  'Lightning (Sound)': 8505,
+  'Gradient': 8506,
+  'Graffiti': 8507,
+  'Dreamlike': 8508,
 };
 
 let currentCustomColor = null;
@@ -88,10 +100,7 @@ function sceneCodeFromKey(key) {
   if (typeof key !== 'string') return null;
   if (key.startsWith('sg:')) return 15626;
   if (key.startsWith('matrix:')) return 8524;
-  if (key === 'Gradient') return 8506;
-  if (key === 'Dream 1' || key === 'Dream 2') return 8508;
-  if (key === 'Graffiti 1' || key === 'Graffiti 2' || key === 'Graffiti 3') return 8507;
-  return 8505;
+  return SCENE_CODE_ALIASES[key] ?? null;
 }
 
 function sceneDisplayName(sceneCode) {
@@ -471,8 +480,8 @@ function highlightActiveScene(sceneCode) {
   badges.forEach(b => {
     const codeMatch = sceneCode != null && Number(b.dataset.sceneCode) === sceneCode;
     let isActive = codeMatch;
-    if (isActive && !b.classList.contains('preset-scene-badge') && isAmbiguous && activeSceneKey && b.dataset.sceneKey) {
-      isActive = b.dataset.sceneKey === activeSceneKey;
+    if (isActive && !b.classList.contains('preset-scene-badge') && isAmbiguous) {
+      isActive = !!activeSceneKey && b.dataset.sceneKey === activeSceneKey;
     }
     b.classList.toggle('active', isActive);
   });
