@@ -42,7 +42,7 @@ const DEFAULT_CALIBRATION_SETTINGS = {
     solidColours: true,
   },
   correction: {
-    redScale: 0.95,
+    redWhiteCut: 0.2,
     blueWhiteCut: 0.5,
   },
 };
@@ -73,11 +73,11 @@ function loadCalibrationSettings() {
       ...(stored?.features || {}),
     },
     correction: {
-      redScale: clampNumber(
-        stored?.correction?.redScale,
+      redWhiteCut: clampNumber(
+        stored?.correction?.redWhiteCut,
         0,
-        1.5,
-        DEFAULT_CALIBRATION_SETTINGS.correction.redScale
+        1,
+        stored?.correction ? 0 : DEFAULT_CALIBRATION_SETTINGS.correction.redWhiteCut
       ),
       blueWhiteCut: clampNumber(
         stored?.correction?.blueWhiteCut,
@@ -97,11 +97,11 @@ function saveCalibrationSettings(settings) {
       ...(settings?.features || {}),
     },
     correction: {
-      redScale: clampNumber(
-        settings?.correction?.redScale,
+      redWhiteCut: clampNumber(
+        settings?.correction?.redWhiteCut,
         0,
-        1.5,
-        DEFAULT_CALIBRATION_SETTINGS.correction.redScale
+        1,
+        DEFAULT_CALIBRATION_SETTINGS.correction.redWhiteCut
       ),
       blueWhiteCut: clampNumber(
         settings?.correction?.blueWhiteCut,
@@ -145,15 +145,23 @@ function setCalibrationCorrection(patch) {
   saveCalibrationSettings(settings);
 }
 
-// White point observation: (255,255,255) → (253,255,146)
-// Blue gain is non-linear: full intensity for saturated blue, cut for white.
+// White-point cuts preserve saturated channels and increase as white is mixed in.
+// Blue is also cut when a small blue component rides on a dominant red,
+// because the lamp turns near-red hues pink too quickly.
 function applyCalibration(r, g, b, feature = null) {
   if (!isCalibrationFeatureEnabled(feature)) return [r, g, b];
   const { correction } = loadCalibrationSettings();
-  const whiteness = Math.min(r, g) / 255;
-  const blueGain = 1.0 - correction.blueWhiteCut * whiteness;
+  const redWhiteness = Math.min(g, b) / 255;
+  const blueWhiteness = Math.min(r, g) / 255;
+  const redBlueTint = r > b && r > g
+    ? (r / 255) * (1.0 - g / 255) * (1.0 - b / r)
+    : 0;
+  const redGain = 1.0 - correction.redWhiteCut * redWhiteness;
+  const blueWhiteGain = 1.0 - correction.blueWhiteCut * Math.sqrt(blueWhiteness);
+  const blueRedEdgeGain = 1.0 - Math.min(1, correction.blueWhiteCut * 2.0 * redBlueTint);
+  const blueGain = Math.min(blueWhiteGain, blueRedEdgeGain);
   return [
-    Math.round(r * correction.redScale),
+    Math.max(0, Math.min(255, Math.round(r * redGain))),
     g,
     Math.max(0, Math.min(255, Math.round(b * blueGain))),
   ];

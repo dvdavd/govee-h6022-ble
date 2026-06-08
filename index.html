@@ -987,8 +987,8 @@
 
       <div class="modal-section-title">Correction</div>
       <div class="modal-field">
-        <label class="slider-label" for="calRedScale"><span>Red scale</span><span class="v calibration-readout" id="calRedScaleVal">95.0%</span></label>
-        <track-slider id="calRedScale" min="0" max="150" step="0.1" value="95"></track-slider>
+        <label class="slider-label" for="calRedWhiteCut"><span>Red white cut</span><span class="v calibration-readout" id="calRedWhiteCutVal">20.0%</span></label>
+        <track-slider id="calRedWhiteCut" min="0" max="100" step="0.1" value="20"></track-slider>
       </div>
       <div class="modal-field">
         <label class="slider-label" for="calBlueWhiteCut"><span>Blue white cut</span><span class="v calibration-readout" id="calBlueWhiteCutVal">50.0%</span></label>
@@ -1791,17 +1791,17 @@
     bindToggle('calCustomAdvancedScenes', settings.features.customAdvancedScenes);
     bindToggle('calSolidColours', settings.features.solidColours);
 
-    const red = document.getElementById('calRedScale');
+    const redWhite = document.getElementById('calRedWhiteCut');
     const blue = document.getElementById('calBlueWhiteCut');
-    if (red) red.value = (settings.correction.redScale * 100).toFixed(1);
+    if (redWhite) redWhite.value = (settings.correction.redWhiteCut * 100).toFixed(1);
     if (blue) blue.value = (settings.correction.blueWhiteCut * 100).toFixed(1);
     updateCalibrationReadouts(settings);
     syncCalToggle();
   }
   function updateCalibrationReadouts(settings = loadCalibrationSettings()) {
-    const redVal = document.getElementById('calRedScaleVal');
+    const redWhiteVal = document.getElementById('calRedWhiteCutVal');
     const blueVal = document.getElementById('calBlueWhiteCutVal');
-    if (redVal) redVal.textContent = `${(settings.correction.redScale * 100).toFixed(1)}%`;
+    if (redWhiteVal) redWhiteVal.textContent = `${(settings.correction.redWhiteCut * 100).toFixed(1)}%`;
     if (blueVal) blueVal.textContent = `${(settings.correction.blueWhiteCut * 100).toFixed(1)}%`;
   }
   function toggleCalibrationSetting(e) {
@@ -1842,8 +1842,8 @@
         syncCalibrationModal();
       });
     });
-    document.getElementById('calRedScale')?.addEventListener('input', e => {
-      setCalibrationCorrection({ redScale: Number(e.target.value) / 100 });
+    document.getElementById('calRedWhiteCut')?.addEventListener('input', e => {
+      setCalibrationCorrection({ redWhiteCut: Number(e.target.value) / 100 });
       updateCalibrationReadouts();
     });
     document.getElementById('calBlueWhiteCut')?.addEventListener('input', e => {
