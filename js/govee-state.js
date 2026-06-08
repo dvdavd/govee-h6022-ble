@@ -473,6 +473,9 @@ function updateUI(s) {
 
 function highlightActiveScene(sceneCode) {
   const badges = document.querySelectorAll('.scene-badge');
+  const activeKey = typeof activeSceneKey !== 'undefined' ? activeSceneKey : null;
+  const activeKeyCode = sceneCodeFromKey(activeKey);
+  const useActiveKey = activeKey && activeKeyCode === sceneCode;
   const matching = [...badges].filter(b =>
     Number(b.dataset.sceneCode) === sceneCode && !b.classList.contains('preset-scene-badge')
   );
@@ -480,8 +483,11 @@ function highlightActiveScene(sceneCode) {
   badges.forEach(b => {
     const codeMatch = sceneCode != null && Number(b.dataset.sceneCode) === sceneCode;
     let isActive = codeMatch;
+    if (isActive && useActiveKey) {
+      isActive = b.dataset.sceneKey === activeKey;
+    }
     if (isActive && !b.classList.contains('preset-scene-badge') && isAmbiguous) {
-      isActive = !!activeSceneKey && b.dataset.sceneKey === activeSceneKey;
+      isActive = !!activeKey && b.dataset.sceneKey === activeKey;
     }
     b.classList.toggle('active', isActive);
   });

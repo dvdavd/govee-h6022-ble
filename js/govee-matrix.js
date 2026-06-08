@@ -362,7 +362,7 @@ function saveMatrixPresets(presets) {
 
 function matrixDirectionLoopCells(direction) {
   const [dr, dc] = matrixDirectionDelta(direction);
-  if (dr && dc) return MATRIX_WIDTH * MATRIX_HEIGHT;
+  if (dr && dc) return Math.max(MATRIX_WIDTH, MATRIX_HEIGHT);
   if (dr) return MATRIX_HEIGHT;
   if (dc) return MATRIX_WIDTH;
   return 1;
