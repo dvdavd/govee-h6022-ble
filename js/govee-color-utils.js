@@ -146,8 +146,8 @@ function setCalibrationCorrection(patch) {
 }
 
 // White-point cuts preserve saturated channels and increase as white is mixed in.
-// Blue is also cut when a small blue component rides on a dominant red,
-// because the lamp turns near-red hues pink too quickly.
+// Blue is also cut when a small blue component rides on dominant red/green,
+// because the lamp turns near-red and near-green hues pink/cyan too quickly.
 function applyCalibration(r, g, b, feature = null) {
   if (!isCalibrationFeatureEnabled(feature)) return [r, g, b];
   const { correction } = loadCalibrationSettings();
@@ -156,10 +156,15 @@ function applyCalibration(r, g, b, feature = null) {
   const redBlueTint = r > b && r > g
     ? (r / 255) * (1.0 - g / 255) * (1.0 - b / r)
     : 0;
+  const greenBlueTint = g > b && g > r
+    ? (g / 255) * (1.0 - r / 255) * (1.0 - b / g)
+    : 0;
   const redGain = 1.0 - correction.redWhiteCut * redWhiteness;
   const blueWhiteGain = 1.0 - correction.blueWhiteCut * Math.sqrt(blueWhiteness);
-  const blueRedEdgeGain = 1.0 - Math.min(1, correction.blueWhiteCut * 2.0 * redBlueTint);
-  const blueGain = Math.min(blueWhiteGain, blueRedEdgeGain);
+  const blueRedEdgeGain = 1.0 - Math.min(1, correction.blueWhiteCut * 2.5 * redBlueTint);
+  const blueGreenEdgeGain = 1.0 - Math.min(1, correction.blueWhiteCut * 3.0 * greenBlueTint);
+  const blueEdgeGain = Math.min(blueRedEdgeGain, blueGreenEdgeGain);
+  const blueGain = Math.min(blueWhiteGain, blueEdgeGain);
   return [
     Math.max(0, Math.min(255, Math.round(r * redGain))),
     g,
