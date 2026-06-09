@@ -1295,7 +1295,6 @@
         const p = Math.max(0, Math.min(1, (kelvin - min) / (max - min)));
         marker.style.left = `${cctPresetMarkerLeft(p)}px`;
         marker.title = `${kelvin} K`;
-        setCctControlValue(kelvin);
         return kelvin;
       };
       const onMove = ev => {
